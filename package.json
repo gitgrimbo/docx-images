@@ -1,0 +1,48 @@
+{
+  "name": "docx-images",
+  "version": "1.0.0",
+  "bin": "./bin/cli.js",
+  "engines": {
+    "node": ">=8"
+  },
+  "scripts": {
+    "test": "mocha",
+    "test:watch": "mocha --watch src/**/test/**/*.test.js"
+  },
+  "author": "Paul Grime <gitgrimbo@gmail.com>",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gitgrimbo/docx-images.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gitgrimbo/docx-images/issues"
+  },
+  "homepage": "https://github.com/gitgrimbo/docx-images#readme",
+  "description": "",
+  "dependencies-comments": [
+    "Use xpath 0.0.24 because of this issue https://github.com/goto100/xpath/issues/78"
+  ],
+  "dependencies": {
+    "concat-stream": "^1.6.2",
+    "dev-null": "^0.1.1",
+    "jimp": "^0.4.0",
+    "minimist": "^1.2.0",
+    "mkdirp": "^0.5.1",
+    "xmldom": "^0.1.27",
+    "xpath": "0.0.24",
+    "yauzl": "^2.10.0"
+  },
+  "devDependencies": {
+    "chai": "^4.1.2",
+    "dirty-chai": "^2.0.1",
+    "eslint": "^5.5.0",
+    "eslint-config-airbnb-base": "^13.1.0",
+    "eslint-plugin-import": "^2.14.0",
+    "fs-extra": "^7.0.0",
+    "mocha": "^5.2.0",
+    "readdirp": "^2.1.0",
+    "tmp-promise": "^1.0.5",
+    "upath": "^1.1.0"
+  }
+}

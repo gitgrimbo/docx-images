@@ -15,8 +15,7 @@ const { EntryHandler, getReadDOCXOpts } = require("../extract-and-crop");
 
 const { expect } = chai;
 
-// eslint-disable-next-line camelcase
-async function async_readdirp(root, opts) {
+async function asyncReaddirp(root, opts) {
   return new Promise((resolve, reject) => {
     const entries = [];
     readdirp(root, opts)
@@ -63,7 +62,7 @@ function makeTest(filename, expected, shouldHandleEntry) {
       shouldHandleEntry,
     };
     await extractDOCXFile(docxPath, outputDir, defaultOpts);
-    const entries = await async_readdirp(outputDir);
+    const entries = await asyncReaddirp(outputDir);
     const paths = normaliseAndSortEntryPaths(entries);
     expect(paths).to.be.deep.equal(expected);
   });
@@ -144,7 +143,7 @@ describe("extract-and-crop", () => {
 
     // assert the expected images have been extracted
     //console.log(outputDir, "before readdirp");
-    const entries = await async_readdirp(outputDir);
+    const entries = await asyncReaddirp(outputDir);
     //console.log(outputDir, "after readdirp");
     const paths = normaliseAndSortEntryPaths(entries);
     const expectedPaths = normaliseAndSortPaths(expected.map(([entryPath]) => entryPath));

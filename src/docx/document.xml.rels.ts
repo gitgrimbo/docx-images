@@ -10,38 +10,27 @@ One such relationship is an id mapped to an image path. E.g.:
   Target="media/image335.jpeg"/>
 ```
 */
-const xpath = require("xpath");
-const { Entry } = require("yauzl");
+import * as xpath from "xpath";
+import * as yauzl from "yauzl";
 
-const { parseFile } = require("../xml-parse");
-const usedInJSDoc = require("../jsdoc");
+import _validateDocument from "./validate-document";
+import { parseFile } from "../xml-parse";
 
-usedInJSDoc(Entry);
-
-/**
-@typedef Relationship
-@type {object}
-@property {string} id
-@property {string} type
-@property {string} target
-*/
-
-function validateDocument(doc) {
-  if (doc === undefined || doc === null) {
-    throw new Error(`doc is null/undefined`);
-  }
-  const { localName } = doc.documentElement;
-  const expectedLocalName = "Relationships";
-  if (localName !== expectedLocalName) {
-    throw new Error(`document.documentElement.localName is "${localName}" when "${expectedLocalName}" was expected. Check that document is really a "document.xml.rels".`);
-  }
+export interface Relationship {
+  id: string;
+  type: string;
+  target: string;
 }
 
-function getRelationships(documentXmlRels) {
-  return xpath.select("//*[local-name(.)='Relationship']", documentXmlRels);
+function validateDocument(doc: Document): void {
+  _validateDocument(doc, "Relationships", "document.xml.rels");
 }
 
-async function getRelationshipsFromFile(documentXmlRelsPath) {
+function getRelationships(documentXmlRels): Element[] {
+  return xpath.select("//*[local-name(.)='Relationship']", documentXmlRels) as Element[];
+}
+
+async function getRelationshipsFromFile(documentXmlRelsPath): Promise<Element[]> {
   const doc = await parseFile(documentXmlRelsPath);
   validateDocument(doc);
   return getRelationships(doc);
@@ -51,9 +40,9 @@ async function getRelationshipsFromFile(documentXmlRelsPath) {
  * @param {Document} documentXmlRels
  * @return {Object.<string, Relationship>} Dictionary of image relationships, keyed by id.
  */
-function getImages(documentXmlRels) {
+function getImages(documentXmlRels: Document): { [key: string]: Relationship } {
   const relationships = getRelationships(documentXmlRels);
-  const rels = {};
+  const rels: { [key: string]: Relationship } = {};
   relationships
     // actual Type will be "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
     .filter((r) => r.getAttribute("Type").endsWith("/image"))
@@ -67,7 +56,7 @@ function getImages(documentXmlRels) {
   return rels;
 }
 
-async function getImagesFromFile(documentXmlRelsPath) {
+async function getImagesFromFile(documentXmlRelsPath: string): Promise<{ [key: string]: Relationship }> {
   const doc = await parseFile(documentXmlRelsPath);
   validateDocument(doc);
   return getImages(doc);
@@ -77,7 +66,7 @@ async function getImagesFromFile(documentXmlRelsPath) {
  * @param {Relationship} rel
  * @return {boolean} true if `rel.type` is an image type
  */
-function isImageRel(rel) {
+function isImageRel(rel: Relationship): boolean {
   return (rel.type === "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image");
 }
 
@@ -86,7 +75,7 @@ function isImageRel(rel) {
  * @param {Relationship[]} rels An array of relationship objects.
  * @return {Relationship} The relationship, if found, else null.
  */
-function findRelByTarget(target, rels) {
+function findRelByTarget(target: string, rels: Relationship[]): Relationship {
   if (!target) {
     throw new Error("target should be non-empty string");
   }
@@ -96,11 +85,11 @@ function findRelByTarget(target, rels) {
 }
 
 /**
- * @param {Entry} entry
+ * @param {yauzl.Entry} entry
  * @param {Relationship[]} rels An array of relationship objects.
  * @return {Relationship} The relationship, if found, else null.
  */
-function findRelForEntry(entry, rels) {
+function findRelForEntry(entry: yauzl.Entry, rels: Relationship[]): Relationship {
   if (!entry || !entry.fileName) {
     throw new Error("entry should be an object with a fileName property");
   }
@@ -111,7 +100,7 @@ function findRelForEntry(entry, rels) {
   return findRelByTarget(match[1], rels);
 }
 
-module.exports = {
+export {
   findRelByTarget,
   findRelForEntry,
   getImages,

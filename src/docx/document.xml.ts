@@ -26,61 +26,52 @@ the image width and the crop-right is at 63.045%
 <a:srcRect l="25510" t="40988" r="63045" b="33006"/>
 ```
 */
-const xpath = require("xpath");
+import * as xpath from "xpath";
 
-const { parseFile } = require("../xml-parse");
-const { closest } = require("../xml-query");
+import _validateDocument from "./validate-document";
+import { parseFile } from "../xml-parse";
+import { closest } from "../xml-query";
 
-/**
-@typedef SrcRect
-@type {object}
-@property {string} l left
-@property {string} t top
-@property {string} r right
-@property {string} b bottom
-*/
-
-/**
-@typedef Extent
-@type {object}
-@property {string} cx
-@property {string} cy
-*/
-
-/**
-@typedef DocxImage
-@type {object}
-@property {string} embed
-@property {SrcRect} srcRect
-@property {Extent} extent
-*/
-
-function validateDocument(doc) {
-  if (doc === undefined || doc === null) {
-    throw new Error(`doc is null/undefined`);
-  }
-  const { localName } = doc.documentElement;
-  const expectedLocalName = "document";
-  if (localName !== expectedLocalName) {
-    throw new Error(`document.documentElement.localName is "${localName}" when "${expectedLocalName}" was expected. Check that document is really a "document.xml".`);
-  }
+export interface SrcRect {
+  l: number;
+  t: number;
+  r: number;
+  b: number;
 }
 
-/**
- * @param {Document} documentXml
- * @return {DocxImage[]} images
- */
-function getImages(documentXml) {
+export interface Extent {
+  cx: number;
+  cy: number;
+}
+
+export interface DocxImage {
+  embed: string;
+  srcRect: SrcRect;
+  extent: Extent;
+}
+
+export interface CropRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+function validateDocument(doc: Document): void {
+  _validateDocument(doc, "document", "document.xml");
+}
+
+function getImages(documentXml: Document): DocxImage[] {
   validateDocument(documentXml);
 
-  const blips = xpath.select("//*[local-name(.)='blip']", documentXml);
+  const blips = xpath.select("//*[local-name(.)='blip']", documentXml) as Element[];
   return blips
     .filter((b) => b.getAttribute("r:embed"))
     .map((b) => {
       let srcRect;
       const blipFill = closest(b.parentNode, "blipFill");
       if (blipFill) {
-        const srcRects = xpath.select("*[local-name(.)='srcRect']", blipFill);
+        const srcRects = xpath.select("*[local-name(.)='srcRect']", blipFill) as Element[];
         if (srcRects.length > 0) {
           srcRect = {
             l: srcRects[0].getAttribute("l"),
@@ -94,7 +85,7 @@ function getImages(documentXml) {
       let extent;
       const anchor = closest(b, "anchor");
       if (anchor) {
-        const extents = xpath.select("*[local-name(.)='extent']", anchor);
+        const extents = xpath.select("*[local-name(.)='extent']", anchor) as Element[];
         if (extents.length > 0) {
           extent = {
             cx: extents[0].getAttribute("cx"),
@@ -111,28 +102,15 @@ function getImages(documentXml) {
     });
 }
 
-async function getImagesFromFile(documentXmlPath) {
+async function getImagesFromFile(documentXmlPath: string): Promise<DocxImage[]> {
   return getImages(await parseFile(documentXmlPath));
 }
 
 /**
- * @typedef {Object} CropRect
- * @property {number} left
- * @property {number} top
- * @property {number} width
- * @property {number} height
- */
-
-/**
  * Gets the { left, top, width, height } for a given srcRect and image width/height.
- *
- * @param {object} srcRect
- * @param {number} width
- * @param {number} height
- * @return {CropRect} The crop rect.
  */
-function getCropRect(srcRect, width, height) {
-  const setFromSrcRect = (str, scale) => {
+function getCropRect(srcRect: SrcRect, width: number, height: number): CropRect {
+  const setFromSrcRect = (str, scale): number => {
     const n = parseInt(str, 10);
     if (Number.isNaN(n)) {
       return 0;
@@ -158,7 +136,7 @@ function getCropRect(srcRect, width, height) {
   };
 }
 
-module.exports = {
+export {
   getImages,
   getImagesFromFile,
   getCropRect,

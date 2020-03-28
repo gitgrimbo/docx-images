@@ -1,46 +1,39 @@
-const fs = require("fs");
-const path = require("path");
+import * as fs from "fs";
+import * as path from "path";
 
-const concat = require("concat-stream");
-const devNull = require("dev-null");
-const mkdirp = require("make-dir");
+import concat = require("concat-stream");
+import devNull = require("dev-null");
+import mkdirp = require("make-dir");
 
-/**
- * @param {NodeJS.ReadableStream} stream
- * @return {Promise<Buffer>} The whole stream as a single Buffer.
- */
-function read(stream) {
+function read(stream: NodeJS.ReadableStream): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     stream.on("error", reject);
-    stream.pipe(concat(resolve));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stream.pipe(concat(resolve) as any as NodeJS.WritableStream);
   });
 }
 
-/**
- * @param {NodeJS.ReadableStream} stream
- * @return {Promise<void>}.
- */
-function ignore(stream) {
+function ignore(stream: NodeJS.ReadableStream): Promise<void> {
   return new Promise((resolve, reject) => {
     stream.on("error", reject);
     stream.on("end", resolve);
-    stream.pipe(devNull());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stream.pipe(devNull() as any as NodeJS.WritableStream);
   });
 }
-
 /**
  * Writes `readStream` to `outputPath`.
  * @param {NodeJS.ReadableStream} readStream
  * @param {string} outputPath
  * @return Promise<void>
  */
-async function writeToFile(readStream, outputPath) {
+async function writeToFile(readStream: NodeJS.ReadableStream, outputPath: string): Promise<void> {
   await mkdirp(path.dirname(outputPath));
 
   return new Promise((resolve, reject) => {
     let rejected = false;
 
-    const combinedReject = (err) => {
+    const combinedReject = (err): void => {
       if (rejected) {
         return;
       }
@@ -58,7 +51,7 @@ async function writeToFile(readStream, outputPath) {
   });
 }
 
-module.exports = {
+export {
   read,
   ignore,
   writeToFile,

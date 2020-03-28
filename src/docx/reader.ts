@@ -1,10 +1,10 @@
-const { promisify } = require("util");
+import { promisify } from "util";
 
-const yauzl = require("yauzl");
+import * as yauzl from "yauzl";
 
-const openZip = promisify(yauzl.open);
+const openZip = promisify<string, yauzl.Options, yauzl.ZipFile>(yauzl.open);
 
-async function readDOCXFile(docxPath, defaultOpts) {
+async function readDOCXFile(docxPath: string, defaultOpts): Promise<void> {
   const opts = {
     shouldHandleEntry: null,
     entryHandler: null,
@@ -12,13 +12,13 @@ async function readDOCXFile(docxPath, defaultOpts) {
   };
 
   if (!opts.shouldHandleEntry) {
-    opts.shouldHandleEntry = () => true;
+    opts.shouldHandleEntry = (): boolean => true;
   }
 
   const zipfile = await openZip(docxPath, { lazyEntries: true });
   const openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
 
-  async function handleEntry(entry, handler) {
+  async function handleEntry(entry: yauzl.Entry, handler): Promise<void> {
     const readStream = await openReadStream(entry);
     return handler(entry, readStream);
   }
@@ -28,7 +28,7 @@ async function readDOCXFile(docxPath, defaultOpts) {
 
     zipfile.on("error", reject);
 
-    zipfile.on("entry", async (entry) => {
+    zipfile.on("entry", async (entry: yauzl.Entry) => {
       // directory ends with "/"
       const isDirectory = /\/$/.test(entry.fileName);
 
@@ -58,6 +58,6 @@ async function readDOCXFile(docxPath, defaultOpts) {
   });
 }
 
-module.exports = {
+export {
   readDOCXFile,
 };

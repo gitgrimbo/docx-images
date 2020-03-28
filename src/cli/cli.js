@@ -4,12 +4,14 @@ CLI orchestration script.
 const packageJSON = require("../../package.json");
 const extractCommand = require("./commands/extract");
 const listCommand = require("./commands/list");
+const versionCommand = require("./commands/version");
 
 const binName = packageJSON.name;
 
 const commands = {
   extract: extractCommand,
   list: listCommand,
+  version: versionCommand,
 };
 
 function quoteArr(arr, quote = `"`) {

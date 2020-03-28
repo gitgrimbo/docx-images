@@ -87,6 +87,16 @@ rId147 word/media/image79.jpeg image was cropped to:
 ...
 ```
 
+# Development
+
+## Linting
+
+`npm run lint` or `npm run lint:watch`
+
+## Testing
+
+`npm run test` or `npm run test:watch`
+
 # Notes
 
 - This project uses xpath 0.0.24 because of this issue https://github.com/goto100/xpath/issues/78.

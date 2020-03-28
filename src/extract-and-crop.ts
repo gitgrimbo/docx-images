@@ -76,25 +76,17 @@ class EntryHandler {
     this.images = getImagesFromDocument(xml);
   }
 
-  async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
-    const outputPath = this.outputFilePath(entry);
-    await writeToFile(readStream, outputPath);
-
-    const id = this.getImageIdFromEntry(entry);
-    if (!id) {
-      return;
-    }
-
-    const extractedImages = this.extractedImages[id] || [];
-    this.extractedImages[id] = extractedImages;
-
-    // find where this image appears in the book
-    const occurencesOfImageInBook = this.images.filter((image) => image.embed === id);
-    if (occurencesOfImageInBook.length === 0) {
-      return;
-    }
-
-    const allResults = await Promise.all(
+  async _saveOccurencesOfImageInBook(
+    occurencesOfImageInBook: DocxImage[],
+    outputPath: string,
+    extractedImages: (CropResult | { srcPath: string })[],
+  ): Promise<(CropResult | {
+    err: Error;
+    i: number;
+    image: DocxImage;
+    outputPath: string;
+  })[]> {
+    return Promise.all(
       occurencesOfImageInBook.map(async (image, i) => {
         try {
           // write to a modified outputPath
@@ -114,16 +106,35 @@ class EntryHandler {
           return result;
         } catch (err) {
           return {
-            entry,
             err,
             i,
-            id,
             image,
             outputPath,
           };
         }
       })
     );
+  }
+
+  async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
+    const outputPath = this.outputFilePath(entry);
+    await writeToFile(readStream, outputPath);
+
+    const id = this.getImageIdFromEntry(entry);
+    if (!id) {
+      return;
+    }
+
+    const extractedImages = this.extractedImages[id] || [];
+    this.extractedImages[id] = extractedImages;
+
+    // find where this image appears in the book
+    const occurencesOfImageInBook = this.images.filter((image) => image.embed === id);
+    if (occurencesOfImageInBook.length === 0) {
+      return;
+    }
+
+    const allResults = await this._saveOccurencesOfImageInBook(occurencesOfImageInBook, outputPath, extractedImages);
 
     allResults.forEach((result) => {
       if (!result) {

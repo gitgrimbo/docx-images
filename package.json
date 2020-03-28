@@ -33,7 +33,7 @@
   "dependencies": {
     "concat-stream": "^2.0.0",
     "dev-null": "^0.1.1",
-    "jimp": "^0.9.6",
+    "jimp": "^0.9.8",
     "make-dir": "^3.0.2",
     "minimist": "^1.2.5",
     "xmldom": "^0.3.0",
@@ -45,7 +45,7 @@
     "@types/concat-stream": "^1.6.0",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "^7.0.2",
-    "@types/node": "^12.12.31",
+    "@types/node": "^13.9.5",
     "@types/xmldom": "^0.1.29",
     "@types/yauzl": "^2.9.1",
     "@typescript-eslint/eslint-plugin": "^2.25.0",

@@ -136,17 +136,13 @@ describe("docx/read", () => {
 });
 
 describe("extract-and-crop", () => {
-  // eslint-disable-next-line no-shadow
-  it("100x100.cropped.docx", () => withTmpDir(async ({ path: outputDir }) => {
+  type ExpectedItem = [string, number, number];
+
+  async function extractAndCropTest(testFile: string, expected: ExpectedItem[], outputDir: string): Promise<void> {
     console.log(outputDir, "start test");
-    type ExpectedItem = [string, number, number];
-    const expected: ExpectedItem[] = [
-      ["word/media/image1.png", 100, 100],
-      ["word/media/image1.1.png", 50, 50],
-    ];
 
     // read the docx file using an extract-and-crop EntryHandler
-    const docxPath = resolveTestFile("100x100.cropped.docx");
+    const docxPath = resolveTestFile(testFile);
     const entryHandler = new EntryHandler(outputDir);
     const opts = getReadDOCXOpts(entryHandler);
 
@@ -160,13 +156,32 @@ describe("extract-and-crop", () => {
     expect(paths).to.be.deep.equal(expectedPaths);
 
     // assert the expected images have the expected sizes
-    await Promise.all(expected.map(async ([entryPath, w, h]) => {
-      //console.log(entryPath, "before read");
-      const jimpImage = await Jimp.read(path.resolve(outputDir, entryPath));
-      //console.log(entryPath, "after read");
-      const { width, height } = jimpImage.bitmap;
-      expect(width, `${entryPath} width`).to.be.equal(w);
-      expect(height, `${entryPath} height`).to.be.equal(h);
-    }));
+    await Promise.all(
+      expected.map(async ([entryPath, w, h]) => {
+        //console.log(entryPath, "before read");
+        const jimpImage = await Jimp.read(path.resolve(outputDir, entryPath));
+        //console.log(entryPath, "after read");
+        const { width, height } = jimpImage.bitmap;
+        expect(width, `${entryPath} width`).to.be.equal(w);
+        expect(height, `${entryPath} height`).to.be.equal(h);
+      })
+    );
+  }
+
+  it("100x100.cropped.docx", () => withTmpDir(async ({ path: outputDir }) => {
+    return extractAndCropTest("100x100.cropped.docx", [
+      ["word/media/image1.png", 100, 100],
+      ["word/media/image1.1.png", 50, 50],
+    ], outputDir);
+  }));
+
+  it("100x100.page-breaks.docx", () => withTmpDir(async ({ path: outputDir }) => {
+    return extractAndCropTest("100x100.page-breaks.docx", [
+      ["word/media/image1.png", 100, 100],
+      ["word/media/image1.1.png", 50, 50],
+      ["word/media/image1.2.png", 50, 50],
+      ["word/media/image1.3.png", 50, 50],
+      ["word/media/image1.4.png", 50, 50],
+    ], outputDir);
   }));
 });

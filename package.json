@@ -1,12 +1,13 @@
 {
   "name": "docx-images",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "bin": "./dist/bin/cli.js",
   "engines": {
     "node": ">=8"
   },
   "scripts": {
     "build": "tsc",
+    "build:watch": "tsc --watch",
     "--docx-images-1": "Does a build, then runs the CLI.",
     "--docx-images-2": "E.g. run as `npm run docx-images -- list --docx src/test/100x100.cropped.docx`",
     "docx-images": "tsc && node bin/cli.js",

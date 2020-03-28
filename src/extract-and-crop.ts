@@ -34,15 +34,26 @@ import {
 interface CropError {
   err: Error;
   imageIdx: number;
-  image: DocxImage;
+}
+
+export interface EntryImageInfo {
+  entryFileName: string;
   outputPath: string;
 }
 
 export interface ImageInfo {
   image: DocxImage;
-  outputPath: string;
+  rel: Relationship;
+  entryImage?: EntryImageInfo;
   crop?: CropResult;
   cropError?: CropError;
+  outputPath: string;
+}
+
+export interface Extracts {
+  entryImageInfos: EntryImageInfo[];
+  imageInfos: ImageInfo[];
+  imageRels: Dictionary<Relationship>;
 }
 
 function isImage(entry: yauzl.Entry, imageRels: Dictionary<Relationship>): boolean {
@@ -54,37 +65,32 @@ function isImage(entry: yauzl.Entry, imageRels: Dictionary<Relationship>): boole
 }
 
 class EntryHandler {
-  outputDir = "";
-  imagePrefix = "";
+  private outputDir = "";
+
+  private imagePrefix = "";
 
   /** The <Relationship> tags in the docx */
-  imageRels: Dictionary<Relationship> = null;
+  private imageRels: Dictionary<Relationship> = null;
 
   /**
    * The images in the docx, in order of appearance in the docx.
    */
-  images: DocxImage[] = null;
+  private images: DocxImage[] = null;
 
   /**
    * The images in the docx, in order of appearance in the docx.
    */
-  imageInfos: ImageInfo[] = null;
+  private imageInfos: ImageInfo[] = null;
 
   /**
-   * Map of image target (e.g. "media/image1.jpeg") to Relationship id (e.g. "rId8").
+   * The image files that were in the docx archive.
+   * These images may have not been referenced in the document, but they were extracted anyway.
    */
-  imageTargetToId: Dictionary<string> = null;
+  private entryImageInfos: EntryImageInfo[] = null;
 
   constructor(outputDir: string, imagePrefix = "") {
     this.outputDir = outputDir;
     this.imagePrefix = imagePrefix || "";
-  }
-
-  getImageIdFromEntry(entry: yauzl.Entry): string {
-    // Turn "word/media/image269.jpeg" into "media/image269.jpeg"
-    // because the "Target" attribute of a <Relationship> does not have "word/" as a prefix.
-    const filenameAsTarget = entry.fileName.replace(/^word\//, "");
-    return this.imageTargetToId[filenameAsTarget];
   }
 
   async maybeCropImage(image, srcPath, outputPath): Promise<CropResult | null> {
@@ -94,14 +100,6 @@ class EntryHandler {
   async handleDocumentRels(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
     const xml = await parseStream(readStream);
     this.imageRels = getImagesFromDocumentRels(xml);
-
-    // setup the map of <Relationship> targets to <Relationship> ids.
-    this.imageTargetToId = Object.keys(this.imageRels)
-      .reduce((map, id) => {
-        const { target } = this.imageRels[id];
-        map[target] = id;
-        return map;
-      }, {});
   }
 
   async handleDocumentXml(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
@@ -111,8 +109,14 @@ class EntryHandler {
 
   async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
     const outputPath = this._outputFilePath(entry);
-    console.log("handleImage", outputPath);
     await writeToFile(readStream, outputPath);
+    if (!this.entryImageInfos) {
+      this.entryImageInfos = [];
+    }
+    this.entryImageInfos.push({
+      entryFileName: entry.fileName,
+      outputPath,
+    });
   }
 
   shouldHandleEntry(entry: yauzl.Entry): boolean {
@@ -167,68 +171,93 @@ class EntryHandler {
     return path.resolve(...parts);
   }
 
-  async _saveImage(
-    image: DocxImage,
-    imageIdx: number,
-    outputPath: string,
-  ): Promise<CropResult | CropError> {
-    try {
-      // write to a modified outputPath
-      const { dir, ext, name } = path.parse(outputPath);
-      const newName = `${name}.${imageIdx + 1}${ext}`;
-      const newOutputPath = path.resolve(dir, newName);
-      const result = await maybeCropImage(image, outputPath, newOutputPath);
-      return result;
-    } catch (err) {
+  async _generateImageInfo(): Promise<ImageInfo[]> {
+    const imageRefCounts = {};
+
+    this.imageInfos = [];
+
+    const handle = async (image, imageIdx): Promise<ImageInfo> => {
+      const rel = this.imageRels[image.embed];
+      const { target } = rel;
+      const entryImage = this.entryImageInfos.find((entryImage) => entryImage.entryFileName === "word/" + target);
+
+      const outputPath = this._outputFilePath(target);
+
+      let result = null;
+
+      try {
+        // write to a modified outputPath
+        const srcPath = outputPath;
+
+        // how many times have we seen this image?
+        const refCount = imageRefCounts[srcPath] || 0;
+
+        const { dir, ext, name } = path.parse(srcPath);
+        const newName = `${name}.${refCount + 1}${ext}`;
+        const newOutputPath = path.resolve(dir, newName);
+
+        result = await maybeCropImage(image, srcPath, newOutputPath);
+
+        if (result) {
+          // we saved a cropped image, so update the ref count for its source path.
+          imageRefCounts[srcPath] = (imageRefCounts[srcPath] || 0) + 1;
+        }
+      } catch (err) {
+        console.log("error", err);
+        return {
+          image,
+          rel,
+          entryImage,
+          outputPath,
+          cropError: {
+            err,
+            imageIdx,
+          },
+        };
+      }
+
+      if (!result) {
+        console.log(image.embed, target, outputPath, "image was not cropped");
+        return {
+          image,
+          rel,
+          entryImage,
+          outputPath,
+        };
+      }
+
+      // assume cropped
+      console.log(image.embed, target, `image was cropped to:`);
+      console.log(`  ${result.outputPath}, old-size: ${JSON.stringify(result.old)}, new-size: ${JSON.stringify(result.new)}`);
       return {
-        err,
-        imageIdx,
         image,
+        rel,
+        entryImage,
+        crop: result,
         outputPath,
       };
     }
-  }
 
-  async _generateImageInfo(): Promise<ImageInfo[]> {
-    this.imageInfos = await Promise.all(
-      this.images.map(async (image, imageIdx) => {
-        const { target } = this.imageRels[image.embed];
-        const outputPath = this._outputFilePath(target);
-        const result = await this._saveImage(image, imageIdx, outputPath);
-
-        if (!result) {
-          console.log(image.embed, target, outputPath, "image was not cropped");
-          return {
-            image,
-            outputPath,
-          };
-        }
-
-        if ("err" in result) {
-          console.log("error", result);
-          return {
-            image,
-            outputPath,
-            cropError: result,
-          };
-        }
-
-        // assume cropped
-        console.log(image.embed, target, `image was cropped to:`);
-        console.log(`  ${result.outputPath}, old-size: ${JSON.stringify(result.old)}, new-size: ${JSON.stringify(result.new)}`);
-        return {
-          image,
-          outputPath,
-          crop: result,
-        };
-      })
-    );
+    for (const [imageIdx, image] of this.images.entries()) {
+      // wait for the handling of images sequentially,
+      // so there is no race condition on imageRefCounts
+      const result = await handle(image, imageIdx);
+      this.imageInfos.push(result);
+    }
 
     return this.imageInfos;
   }
 
   async onFinish(): Promise<void> {
     await this._generateImageInfo();
+  }
+
+  getExtracts(): Extracts {
+    return {
+      entryImageInfos: this.entryImageInfos,
+      imageInfos: this.imageInfos,
+      imageRels: this.imageRels,
+    };
   }
 }
 

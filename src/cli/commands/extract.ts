@@ -9,7 +9,6 @@ import { EntryHandler, getReadDOCXOpts } from "../../extract-and-crop";
 import { printHtmlReport } from "../../reports";
 import Dictionary from "../../Dictionary";
 import { Relationship } from "../../docx/document.xml.rels";
-import { DocxImage } from "../../docx/document.xml";
 import CommandArgDescriptor from "../CommandArgDescriptor";
 
 function printImageRels(imageRels: Dictionary<Relationship>): void {
@@ -22,24 +21,17 @@ function printImageRels(imageRels: Dictionary<Relationship>): void {
   });
 }
 
-function printImages(images: DocxImage[], imageRels: Dictionary<Relationship> = {}): void {
-  console.log();
-  console.log(`${images.length} images (the order the images appear in the document):`);
-  images.forEach((image) => {
-    const target = imageRels[image.embed];
-    console.log(image.embed, target);
-  });
-}
-
 async function printResults(entryHandler: EntryHandler): Promise<void> {
-  const { images, imageRels } = entryHandler;
+  const {
+    imageRels,
+    imageInfos,
+  } = entryHandler.getExtracts();
 
-  if (images && imageRels) {
+  if (imageRels) {
     printImageRels(imageRels);
-    printImages(images, imageRels);
   }
 
-  entryHandler.imageInfos.forEach((imageInfo, imageInfoIdx) => {
+  imageInfos.forEach((imageInfo, imageInfoIdx) => {
     console.log(imageInfoIdx, JSON.stringify(imageInfo, null, 1));
   });
 }
@@ -91,7 +83,7 @@ async function main(binName, commandName, args): Promise<void> {
   await readDOCXFile(docx, opts);
 
   await printResults(entryHandler);
-  await printHtmlReport("images.html", outputDir, entryHandler.imageInfos);
+  await printHtmlReport("docx-images.report.html", outputDir, entryHandler.getExtracts());
 }
 
 export default main;

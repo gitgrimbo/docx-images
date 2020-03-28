@@ -1,6 +1,7 @@
 `docx-images` can extract images from a docx file, and crop them as necessary.
 
-I.e. if a docx file embeds `image1.jpg` that is 100x100 pixels, but the document crops this image to 50x50 pixels, then `docx-images` will extract both the original image and a cropped version.
+I.e. if a docx file embeds `image1.jpg` that is 100x100 pixels, but the document crops this image
+to 50x50 pixels, then `docx-images` will extract both the original image and a cropped version.
 
 # Installation
 
@@ -58,8 +59,9 @@ embed= rId26 count= 1 target= media/image8.jpeg srcRect= { l: '', r: '', t: '', 
 ...
 ```
 
-The `srcRect` describes how the image is cropped. See comments in [src/docx/document.xml.js](src/docx/document.xml.js)
-and the `getCropRect()` function for more information.
+The `srcRect` describes how the image is cropped. See comments in
+[src/docx/document.xml.js](src/docx/document.xml.js) and the `getCropRect()` function for more
+information.
 
 ## `extract`
 
@@ -87,7 +89,16 @@ rId147 word/media/image79.jpeg image was cropped to:
 ...
 ```
 
+### Report
+
+After extraction, a `docx-images.report.html` report will be generated that shows the extracted
+images and the 'crop boxes' for each cropped image.
+
 # Development
+
+## Building
+
+`npm run build` or `npm run build:watch`
 
 ## Linting
 

@@ -1,14 +1,18 @@
 /*
 Script that will do any necessary cropping to the images that are extracted from a docx file.
 */
-const minimist = require("minimist");
+import * as minimist from "minimist";
 
-const { minimistOpts, printHelp } = require("../util");
-const { readDOCXFile } = require("../../docx/reader");
-const { EntryHandler, getReadDOCXOpts } = require("../../extract-and-crop");
-const { printHtmlReport } = require("../../reports");
+import { minimistOpts, printHelp } from "../util";
+import { readDOCXFile } from "../../docx/reader";
+import { EntryHandler, getReadDOCXOpts } from "../../extract-and-crop";
+import { printHtmlReport } from "../../reports";
+import Dictionary from "../../Dictionary";
+import { Relationship } from "../../docx/document.xml.rels";
+import { DocxImage } from "../../docx/document.xml";
+import CommandArgDescriptor from "../CommandArgDescriptor";
 
-function printImageRels(imageRels) {
+function printImageRels(imageRels: Dictionary<Relationship>): void {
   const keys = Object.keys(imageRels);
   console.log();
   console.log(`${keys.length} imageRels (image lookups - map an id to a target):`);
@@ -18,7 +22,7 @@ function printImageRels(imageRels) {
   });
 }
 
-function printImages(images, imageRels = {}) {
+function printImages(images: DocxImage[], imageRels: Dictionary<Relationship> = {}): void {
   console.log();
   console.log(`${images.length} images (the order the images appear in the document):`);
   images.forEach((image) => {
@@ -27,7 +31,7 @@ function printImages(images, imageRels = {}) {
   });
 }
 
-function printResults(entryHandler) {
+function printResults(entryHandler): void {
   const { images, imageRels } = entryHandler;
 
   if (images && imageRels) {
@@ -61,8 +65,8 @@ function printResults(entryHandler) {
   });
 }
 
-async function main(binName, commandName, args) {
-  const commandArgInfo = {
+async function main(binName, commandName, args): Promise<void> {
+  const commandArgInfo: Dictionary<CommandArgDescriptor> = {
     docx: {
       description: "The path to the docx file.",
       type: "string",
@@ -79,7 +83,7 @@ async function main(binName, commandName, args) {
     },
   };
 
-  const argv = minimist(args, minimistOpts(commandArgInfo)) || {};
+  const argv = minimist(args, minimistOpts(commandArgInfo));
 
   const input = argv._[0];
 
@@ -115,4 +119,4 @@ async function main(binName, commandName, args) {
   }
 }
 
-module.exports = main;
+export default main;

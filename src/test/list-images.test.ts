@@ -1,9 +1,11 @@
-const path = require("path");
+import * as path from "path";
 
-const chai = require("chai");
-chai.use(require("dirty-chai"));
+import * as chai from "chai";
+import * as dirtyChai from "dirty-chai";
 
-const { listImages } = require("../list-images");
+import { listImages } from "../list-images";
+
+chai.use(dirtyChai);
 
 const { expect } = chai;
 

@@ -14,6 +14,7 @@ import * as xpath from "xpath";
 import * as yauzl from "yauzl";
 
 import _validateDocument from "./validate-document";
+import Dictionary from "../Dictionary";
 import { parseFile } from "../xml-parse";
 
 export interface Relationship {
@@ -38,11 +39,11 @@ async function getRelationshipsFromFile(documentXmlRelsPath): Promise<Element[]>
 
 /**
  * @param {Document} documentXmlRels
- * @return {Object.<string, Relationship>} Dictionary of image relationships, keyed by id.
+ * @return {Dictionary<Relationship>} Dictionary of image relationships, keyed by id.
  */
-function getImages(documentXmlRels: Document): { [key: string]: Relationship } {
+function getImages(documentXmlRels: Document): Dictionary<Relationship> {
   const relationships = getRelationships(documentXmlRels);
-  const rels: { [key: string]: Relationship } = {};
+  const rels: Dictionary<Relationship> = {};
   relationships
     // actual Type will be "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
     .filter((r) => r.getAttribute("Type").endsWith("/image"))
@@ -56,7 +57,7 @@ function getImages(documentXmlRels: Document): { [key: string]: Relationship } {
   return rels;
 }
 
-async function getImagesFromFile(documentXmlRelsPath: string): Promise<{ [key: string]: Relationship }> {
+async function getImagesFromFile(documentXmlRelsPath: string): Promise<Dictionary<Relationship>> {
   const doc = await parseFile(documentXmlRelsPath);
   validateDocument(doc);
   return getImages(doc);
@@ -72,10 +73,10 @@ function isImageRel(rel: Relationship): boolean {
 
 /**
  * @param {string} target
- * @param {Relationship[]} rels An array of relationship objects.
+ * @param {Dictionary<Relationship>} rels An array of relationship objects.
  * @return {Relationship} The relationship, if found, else null.
  */
-function findRelByTarget(target: string, rels: Relationship[]): Relationship {
+function findRelByTarget(target: string, rels: Dictionary<Relationship>): Relationship {
   if (!target) {
     throw new Error("target should be non-empty string");
   }
@@ -86,10 +87,10 @@ function findRelByTarget(target: string, rels: Relationship[]): Relationship {
 
 /**
  * @param {yauzl.Entry} entry
- * @param {Relationship[]} rels An array of relationship objects.
+ * @param {Dictionary<Relationship>} rels A Dictionary of relationship objects.
  * @return {Relationship} The relationship, if found, else null.
  */
-function findRelForEntry(entry: yauzl.Entry, rels: Relationship[]): Relationship {
+function findRelForEntry(entry: yauzl.Entry, rels: Dictionary<Relationship>): Relationship {
   if (!entry || !entry.fileName) {
     throw new Error("entry should be an object with a fileName property");
   }

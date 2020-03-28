@@ -1,10 +1,12 @@
-const fs = require("fs");
-const path = require("path");
+import * as fs from "fs";
+import * as path from "path";
 
-const chai = require("chai");
-chai.use(require("dirty-chai"));
+import * as chai from "chai";
+import * as dirtyChai from "dirty-chai";
 
-const { ignore, read } = require("../streams");
+import { ignore, read } from "../streams";
+
+chai.use(dirtyChai);
 
 const { expect } = chai;
 
@@ -13,7 +15,7 @@ describe("streams", () => {
     it("success", async () => {
       const stream = fs.createReadStream(path.resolve(__dirname, "test.txt"));
       const actual = await ignore(stream);
-      expect(actual).to.be.undefined();
+      expect(actual).to.be.undefined;
     });
 
     it("failure", async () => {

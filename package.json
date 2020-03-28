@@ -1,15 +1,15 @@
 {
   "name": "docx-images",
   "version": "1.0.1",
-  "bin": "./bin/cli.js",
+  "bin": "./dist/bin/cli.js",
   "engines": {
     "node": ">=8"
   },
   "scripts": {
-    "lint": "eslint . --ext .js,.ts",
-    "lint:watch": "esw --watch --ext .js,.ts",
-    "test": "mocha --require ts-node/register src/**/test/**/*.test.js",
-    "test:watch": "mocha --require ts-node/register --watch --watch-files src/**/*.js --watch-files src/**/*.ts src/**/test/**/*.test.js"
+    "lint": "eslint . --ext .ts",
+    "lint:watch": "esw --watch --ext .ts",
+    "test": "mocha --require ts-node/register src/**/test/**/*.test.ts",
+    "test:watch": "mocha --require ts-node/register --watch --watch-files src/**/*.ts src/**/test/**/*.test.ts"
   },
   "author": "Paul Grime <gitgrimbo@gmail.com>",
   "license": "ISC",
@@ -36,7 +36,10 @@
     "yauzl": "^2.10.0"
   },
   "devDependencies": {
+    "@types/chai": "^4.2.11",
     "@types/concat-stream": "^1.6.0",
+    "@types/minimist": "^1.2.0",
+    "@types/mocha": "^7.0.2",
     "@types/node": "^12.12.31",
     "@types/xmldom": "^0.1.29",
     "@types/yauzl": "^2.9.1",

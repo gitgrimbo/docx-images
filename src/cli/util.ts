@@ -1,11 +1,18 @@
-function minimistOpts(argInfo) {
-  const opts = {};
+import minimist from "minimist";
+import Dictionary from "../Dictionary";
+import CommandArgDescriptor from "./CommandArgDescriptor";
+
+function minimistOpts(argInfo: Dictionary<CommandArgDescriptor>): minimist.Opts {
+  const opts = {
+    string: [] as string[],
+    default: {},
+  };
   Object.keys(argInfo)
     .forEach((key) => {
       const info = argInfo[key];
       if (info.type === "string") {
-        opts.string = opts.string || [];
-        opts.string.push(key);
+        const arr = opts.string = opts.string || [];
+        arr.push(key);
       }
       if (info.defaultValue) {
         opts.default = opts.default || {};
@@ -15,7 +22,7 @@ function minimistOpts(argInfo) {
   return opts;
 }
 
-function printHelp(binName, commandName, argInfo) {
+function printHelp(binName: string, commandName: string, argInfo: Dictionary<CommandArgDescriptor>): void {
   console.log(`Usage is: ${binName} ${commandName} [options...]`);
   Object.keys(argInfo)
     .forEach((key) => {
@@ -34,7 +41,7 @@ function printHelp(binName, commandName, argInfo) {
     });
 }
 
-module.exports = {
+export {
   minimistOpts,
   printHelp,
 };

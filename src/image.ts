@@ -1,15 +1,31 @@
-const Jimp = require("jimp");
+import * as Jimp from "jimp";
 
-const { getCropRect } = require("./docx/document.xml");
+import {
+  getCropRect,
+  CropRect,
+  DocxImage,
+} from "./docx/document.xml";
+
+export interface CropResult {
+  srcPath: string;
+  outputPath: string;
+  old: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+  new: CropRect;
+}
 
 /**
- * @param {object} image An image from getImagesFromDocument().
+ * @param {DocxImage} image An image from getImagesFromDocument().
  * @param {string} srcPath Where to load the original (uncropped) image from.
  * @param {string} outputPath Where to save the (cropped) image.
- * @return {object} null if no cropping was done, else the before/after image sizes, and
- *         src/output paths.
+ * @return {Promise<CropResult | null>} null if no cropping was done, else the
+ *   before/after image sizes, and src/output paths.
  */
-async function maybeCropImage(image, srcPath, outputPath) {
+async function maybeCropImage(image: DocxImage, srcPath: string, outputPath: string): Promise<CropResult | null> {
   const { srcRect, extent } = image;
   const noSrcRect = !image.srcRect || (
     !srcRect.l && !srcRect.t && !srcRect.r && !srcRect.b
@@ -54,6 +70,6 @@ async function maybeCropImage(image, srcPath, outputPath) {
   return result;
 }
 
-module.exports = {
+export {
   maybeCropImage,
 };

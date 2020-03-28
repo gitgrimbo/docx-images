@@ -1,7 +1,11 @@
-const chai = require("chai");
-chai.use(require("dirty-chai"));
+import * as chai from "chai";
+import * as dirtyChai from "dirty-chai";
+import * as yauzl from "yauzl";
 
-const { findRelForEntry } = require("../document.xml.rels");
+import { findRelForEntry, Relationship } from "../document.xml.rels";
+import Dictionary from "../../Dictionary";
+
+chai.use(dirtyChai);
 
 const { expect } = chai;
 
@@ -9,14 +13,16 @@ const { expect } = chai;
  * @param {any} expected The fixture's expected value.
  * @return {string} The display string for the expected value.
  */
-function expectedStr(expected) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function expectedStr(expected: any): string {
   if (expected === Error) {
     return "Error";
   }
   return JSON.stringify(expected);
 }
 
-function testName(entry, rels, expected, i) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function testName(entry: yauzl.Entry, rels: Dictionary<Relationship>, expected: any, i: number): string {
   return [
     `${i}:`,
     "findRelForEntry(",
@@ -31,7 +37,7 @@ function testName(entry, rels, expected, i) {
 
 describe("docx/document.xml.rels", () => {
   describe("findRelForEntry", () => {
-    const goodEntry = { fileName: "word/media/image1.png" };
+    const goodEntry = { fileName: "word/media/image1.png" } as yauzl.Entry;
     const goodRel = {
       id: "rId4",
       type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
@@ -40,12 +46,17 @@ describe("docx/document.xml.rels", () => {
     const goodRels = {
       [goodRel.id]: goodRel,
     };
-    const fixtures = [
+    type FixtureItem = [
+      yauzl.Entry | undefined | null,
+      Dictionary<Relationship> | undefined | null,
+      Relationship | ErrorConstructor | null,
+    ];
+    const fixtures: FixtureItem[] = [
       [undefined, undefined, Error],
       [null, undefined, Error],
       [undefined, null, Error],
       [null, null, Error],
-      [{}, null, Error],
+      [{} as yauzl.Entry, null, Error],
       [goodEntry, null, Error],
       [goodEntry, {}, null],
       [goodEntry, goodRels, goodRel],
@@ -53,11 +64,12 @@ describe("docx/document.xml.rels", () => {
     fixtures.forEach(([entry, rels, expected], i) => {
       const name = testName(entry, rels, expected, i);
       it(name, () => {
-        const test = () => findRelForEntry(entry, rels);
+        const test = (): Relationship => findRelForEntry(entry, rels);
         if (expected === Error) {
           expect(test).to.throw();
         } else {
-          expect(test()).to.be.equal(expected);
+          const actual = test();
+          expect(actual).to.be.equal(expected);
         }
       });
     });

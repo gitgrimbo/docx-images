@@ -1,10 +1,10 @@
 /*
 CLI orchestration script.
 */
-const packageJSON = require("../../package.json");
-const extractCommand = require("./commands/extract");
-const listCommand = require("./commands/list");
-const versionCommand = require("./commands/version");
+import packageJSON from "../../package.json";
+import extractCommand from "./commands/extract";
+import listCommand from "./commands/list";
+import versionCommand from "./commands/version";
 
 const binName = packageJSON.name;
 
@@ -14,12 +14,12 @@ const commands = {
   version: versionCommand,
 };
 
-function quoteArr(arr, quote = `"`) {
+function quoteArr(arr: string[], quote = `"`): string {
   const joined = arr.join(`${quote}, ${quote}`);
   return `${quote}${joined}${quote}`;
 }
 
-function printHelp() {
+function printHelp(): void {
   const commandNames = quoteArr(Object.keys(commands));
   const lines = [
     `Usage is ${binName} command ...args`,
@@ -29,7 +29,7 @@ function printHelp() {
   lines.forEach((line) => console.log(line));
 }
 
-async function main() {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   // remove the argument and treat as command name

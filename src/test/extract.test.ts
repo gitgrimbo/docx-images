@@ -1,21 +1,27 @@
-const path = require("path");
+import * as path from "path";
 
-const chai = require("chai");
-chai.use(require("dirty-chai"));
-const fs = require("fs-extra");
-const Jimp = require("jimp");
-const readdirp = require("readdirp");
-const tmp = require("tmp-promise");
-const upath = require("upath");
+import * as chai from "chai";
+import * as dirtyChai from "dirty-chai";
+import * as fs from "fs-extra";
+import * as Jimp from "jimp";
+import * as readdirp from "readdirp";
+import * as tmp from "tmp-promise";
+import * as upath from "upath";
+import * as yauzl from "yauzl";
 
-const { readDOCXFile } = require("../docx/reader");
-const { extractDOCXFile } = require("../docx/extracter");
-const { isMedia } = require("../docx/entry-tests");
-const { EntryHandler, getReadDOCXOpts } = require("../extract-and-crop");
+import { readDOCXFile } from "../docx/reader";
+import { extractDOCXFile } from "../docx/extracter";
+import { isMedia } from "../docx/entry-tests";
+import {
+  EntryHandler,
+  getReadDOCXOpts,
+} from "../extract-and-crop";
+
+chai.use(dirtyChai);
 
 const { expect } = chai;
 
-async function asyncReaddirp(root, opts) {
+async function asyncReaddirp(root, opts?: readdirp.ReaddirpOptions): Promise<readdirp.EntryInfo[]> {
   return new Promise((resolve, reject) => {
     const entries = [];
     readdirp(root, opts)
@@ -25,17 +31,17 @@ async function asyncReaddirp(root, opts) {
   });
 }
 
-function normaliseAndSortPaths(paths) {
+function normaliseAndSortPaths(paths: string[]): string[] {
   return paths
     .map((p) => upath.normalize(p))
     .sort();
 }
 
-function normaliseAndSortEntryPaths(entries) {
+function normaliseAndSortEntryPaths(entries: readdirp.EntryInfo[]): string[] {
   return normaliseAndSortPaths(entries.map((entry) => entry.path));
 }
 
-function withTmpDir(fn) {
+function withTmpDir(fn: (result: tmp.DirectoryResult) => void): Promise<void> {
   return tmp.dir().then(async (o) => {
     //console.log(o.path, "created");
     try {
@@ -51,12 +57,16 @@ function withTmpDir(fn) {
   });
 }
 
-function resolveTestFile(name) {
+function resolveTestFile(name: string): string {
   return path.resolve(__dirname, name);
 }
 
-function makeTest(filename, expected, shouldHandleEntry) {
-  return () => withTmpDir(async ({ path: outputDir }) => {
+function makeTest(
+  filename: string,
+  expected: string[],
+  shouldHandleEntry: (entry: yauzl.Entry) => boolean,
+): () => Promise<void> {
+  return (): Promise<void> => withTmpDir(async ({ path: outputDir }) => {
     const docxPath = resolveTestFile(filename);
     const defaultOpts = {
       shouldHandleEntry,
@@ -70,7 +80,8 @@ function makeTest(filename, expected, shouldHandleEntry) {
 
 describe("docx/read", () => {
   describe("extractDOCXFile", () => {
-    const fixtures = [
+    type FixtureItem = [string, string, string[], ((entry: yauzl.Entry) => boolean)?];
+    const fixtures: FixtureItem[] = [
       [
         "all",
         "100x100.cropped.docx",
@@ -128,7 +139,8 @@ describe("extract-and-crop", () => {
   // eslint-disable-next-line no-shadow
   it("100x100.cropped.docx", () => withTmpDir(async ({ path: outputDir }) => {
     console.log(outputDir, "start test");
-    const expected = [
+    type ExpectedItem = [string, number, number];
+    const expected: ExpectedItem[] = [
       ["word/media/image1.png", 100, 100],
       ["word/media/image1.crop.1.png", 50, 50],
     ];

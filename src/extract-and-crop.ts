@@ -1,13 +1,33 @@
-const path = require("path");
+import * as path from "path";
+import * as yauzl from "yauzl";
 
-const { getImages: getImagesFromDocument } = require("./docx/document.xml");
-const { getImages: getImagesFromDocumentRels, findRelForEntry, isImageRel } = require("./docx/document.xml.rels");
-const { isDocumentXml, isDocumentXmlRels, isMedia } = require("./docx/entry-tests");
-const { maybeCropImage } = require("./image");
-const { parseStream } = require("./xml-parse");
-const { ignore, writeToFile } = require("./streams");
+import Dictionary from "./Dictionary";
+import {
+  getImages as getImagesFromDocument,
+  DocxImage,
+} from "./docx/document.xml";
+import {
+  getImages as getImagesFromDocumentRels,
+  findRelForEntry,
+  isImageRel,
+  Relationship,
+} from "./docx/document.xml.rels";
+import {
+  isDocumentXml,
+  isDocumentXmlRels,
+  isMedia,
+} from "./docx/entry-tests";
+import {
+  maybeCropImage,
+  CropResult,
+} from "./image";
+import { parseStream } from "./xml-parse";
+import {
+  ignore,
+  writeToFile,
+} from "./streams";
 
-function isImage(entry, imageRels) {
+function isImage(entry: yauzl.Entry, imageRels: Dictionary<Relationship>): boolean {
   const rel = findRelForEntry(entry, imageRels);
   if (!rel) {
     return false;
@@ -16,44 +36,47 @@ function isImage(entry, imageRels) {
 }
 
 class EntryHandler {
-  constructor(outputDir, imagePrefix) {
+  outputDir = "";
+  imagePrefix = "";
+  imageRels: Dictionary<Relationship> = null;
+  images: DocxImage[] = null;
+  imageTargetToId: Dictionary<string> = null;
+  extractedImages = {};
+
+  constructor(outputDir: string, imagePrefix = "") {
     this.outputDir = outputDir;
     this.imagePrefix = imagePrefix || "";
-    this.imageRels = null;
-    this.images = null;
-    this.imageTargetToId = null;
-    this.extractedImages = {};
   }
 
-  getImageIdFromEntry(entry) {
+  getImageIdFromEntry(entry: yauzl.Entry): string {
     // turn "word/media/image269.jpeg" into "media/image269.jpeg"
     const filenameAsTarget = entry.fileName.replace(/^word\//, "");
     return this.imageTargetToId[filenameAsTarget];
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  async maybeCropImage(image, srcPath, outputPath) {
+  async maybeCropImage(image, srcPath, outputPath): Promise<CropResult | null> {
     return maybeCropImage(image, srcPath, outputPath);
   }
 
-  async handleDocumentRels(entry, readStream) {
+  async handleDocumentRels(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
     const xml = await parseStream(readStream);
     this.imageRels = getImagesFromDocumentRels(xml);
 
-    this.imageTargetToId = Object.keys(this.imageRels).reduce((map, id) => {
-      const { target } = this.imageRels[id];
-      // eslint-disable-next-line no-param-reassign
-      map[target] = id;
-      return map;
-    }, {});
+    this.imageTargetToId = Object.keys(this.imageRels)
+      .reduce((map, id) => {
+        const { target } = this.imageRels[id];
+        // eslint-disable-next-line no-param-reassign
+        map[target] = id;
+        return map;
+      }, {});
   }
 
-  async handleDocumentXml(entry, readStream) {
+  async handleDocumentXml(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
     const xml = await parseStream(readStream);
     this.images = getImagesFromDocument(xml);
   }
 
-  async handleImage(entry, readStream) {
+  async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
     const outputPath = this.outputFilePath(entry);
     await writeToFile(readStream, outputPath);
 
@@ -108,7 +131,7 @@ class EntryHandler {
         return;
       }
 
-      if (result.err) {
+      if ("err" in result) {
         console.log("error", result);
         return;
       }
@@ -119,12 +142,11 @@ class EntryHandler {
     });
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  shouldHandleEntry(entry) {
+  shouldHandleEntry(entry: yauzl.Entry): boolean {
     return isDocumentXmlRels(entry) || isDocumentXml(entry) || isMedia(entry);
   }
 
-  async entryHandler(entry, readStream) {
+  async entryHandler(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
     // make sure to return/await the promises
 
     if (isDocumentXmlRels(entry)) {
@@ -142,7 +164,7 @@ class EntryHandler {
     return ignore(readStream);
   }
 
-  outputFilePath(entry) {
+  outputFilePath(entry: yauzl.Entry): string {
     // entry.fileName is the 'virtual' pathname within the zip
     const { base, dir } = path.parse(entry.fileName);
 
@@ -153,14 +175,17 @@ class EntryHandler {
   }
 }
 
-function getReadDOCXOpts(entryHandler) {
+function getReadDOCXOpts(entryHandler: EntryHandler): {
+  shouldHandleEntry: (entry: yauzl.Entry) => boolean;
+  entryHandler: (entry: yauzl.Entry, readStream: NodeJS.ReadableStream) => boolean;
+} {
   return {
     shouldHandleEntry: entryHandler.shouldHandleEntry.bind(entryHandler),
     entryHandler: entryHandler.entryHandler.bind(entryHandler),
   };
 }
 
-module.exports = {
+export {
   EntryHandler,
   getReadDOCXOpts,
   isImage,

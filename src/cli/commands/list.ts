@@ -12,15 +12,23 @@ There are 3 possible inputs to pass to this script:
 - A docx file. In this case the script will performance an in-memory extract of both the
   document.xml.rels and document.xml files and list the images.
 */
-const minimist = require("minimist");
+import * as minimist from "minimist";
 
-const { minimistOpts, printHelp } = require("../util");
-const { listImages } = require("../../list-images");
-const { getImagesFromFile: getImagesFromDocumentFile } = require("../../docx/document.xml");
-const { getImagesFromFile: getImagesFromDocumentRelsFile } = require("../../docx/document.xml.rels");
-const { printHtmlReport } = require("../../reports");
+import { minimistOpts, printHelp } from "../util";
+import { listImages } from "../../list-images";
+import {
+  getImagesFromFile as getImagesFromDocumentFile,
+  DocxImage,
+} from "../../docx/document.xml";
+import {
+  getImagesFromFile as getImagesFromDocumentRelsFile,
+  Relationship,
+} from "../../docx/document.xml.rels";
+import { printHtmlReport } from "../../reports";
+import Dictionary from "../../Dictionary";
+import CommandArgDescriptor from "../CommandArgDescriptor";
 
-async function handleResults(images, imageRels) {
+async function handleResults(images: DocxImage[], imageRels: Dictionary<Relationship>): Promise<void> {
   if (imageRels) {
     const keys = Object.keys(imageRels);
     console.log();
@@ -69,7 +77,10 @@ async function handleResults(images, imageRels) {
   }
 }
 
-async function getResults(docx, documentXml, documentXmlRels) {
+async function getResults(docx, documentXml, documentXmlRels): Promise<{
+  images: DocxImage[];
+  imageRels: Dictionary<Relationship>;
+}> {
   let images;
   let imageRels;
 
@@ -90,8 +101,8 @@ async function getResults(docx, documentXml, documentXmlRels) {
   };
 }
 
-async function main(binName, commandName, args) {
-  const commandArgInfo = {
+async function main(binName, commandName, args): Promise<void> {
+  const commandArgInfo: Dictionary<CommandArgDescriptor> = {
     docx: {
       description: "The path to the docx file.",
       type: "string",
@@ -106,7 +117,7 @@ async function main(binName, commandName, args) {
     },
   };
 
-  const argv = minimist(args, minimistOpts(commandArgInfo)) || {};
+  const argv = minimist(args, minimistOpts(commandArgInfo));
 
   const input = argv._[0];
 
@@ -126,4 +137,4 @@ async function main(binName, commandName, args) {
   await handleResults(images, imageRels);
 }
 
-module.exports = main;
+export default main;

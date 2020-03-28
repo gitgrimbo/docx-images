@@ -69,6 +69,7 @@ function getImages(documentXml: Document): DocxImage[] {
     .filter((b) => b.getAttribute("r:embed"))
     .map((b) => {
       let srcRect;
+      // xmldom only has parentNode
       const blipFill = closest(b.parentNode, "blipFill");
       if (blipFill) {
         const srcRects = xpath.select("*[local-name(.)='srcRect']", blipFill) as Element[];

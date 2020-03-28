@@ -45,6 +45,7 @@ export interface Extent {
 }
 
 export interface DocxImage {
+  /** The id -> Relationship.id */
   embed: string;
   srcRect: SrcRect;
   extent: Extent;

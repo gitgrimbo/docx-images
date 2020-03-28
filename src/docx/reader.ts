@@ -4,10 +4,14 @@ import * as yauzl from "yauzl";
 
 const openZip = promisify<string, yauzl.Options, yauzl.ZipFile>(yauzl.open);
 
+export type Handler = (entry: yauzl.Entry, readStream: NodeJS.ReadableStream) => Promise<void>;
+export type ShouldHandleEntry = (entry: yauzl.Entry) => boolean;
+
 async function readDOCXFile(docxPath: string, defaultOpts): Promise<void> {
   const opts = {
     shouldHandleEntry: null,
     entryHandler: null,
+    onFinish: null,
     ...defaultOpts,
   };
 
@@ -18,12 +22,12 @@ async function readDOCXFile(docxPath: string, defaultOpts): Promise<void> {
   const zipfile = await openZip(docxPath, { lazyEntries: true });
   const openReadStream = promisify(zipfile.openReadStream.bind(zipfile));
 
-  async function handleEntry(entry: yauzl.Entry, handler): Promise<void> {
+  async function handleEntry(entry: yauzl.Entry, handler: Handler): Promise<void> {
     const readStream = await openReadStream(entry);
     return handler(entry, readStream);
   }
 
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     zipfile.on("close", resolve);
 
     zipfile.on("error", reject);
@@ -56,6 +60,10 @@ async function readDOCXFile(docxPath: string, defaultOpts): Promise<void> {
     // read first  entry
     zipfile.readEntry();
   });
+
+  if (opts.onFinish) {
+    await opts.onFinish();
+  }
 }
 
 export {

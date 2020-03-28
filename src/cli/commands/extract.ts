@@ -31,7 +31,7 @@ function printImages(images: DocxImage[], imageRels: Dictionary<Relationship> = 
   });
 }
 
-function printResults(entryHandler): void {
+async function printResults(entryHandler: EntryHandler): Promise<void> {
   const { images, imageRels } = entryHandler;
 
   if (images && imageRels) {
@@ -39,29 +39,8 @@ function printResults(entryHandler): void {
     printImages(images, imageRels);
   }
 
-  const extractedImages = Object.keys(entryHandler.croppedImages)
-    .reduce((prev, key) => {
-      // copy the array
-      // eslint-disable-next-line no-param-reassign
-      prev[key] = [...entryHandler.croppedImages[key]];
-      return prev;
-    }, {});
-
-  entryHandler.images.forEach((image) => {
-    const extractedImage = extractedImages[image.embed].shift();
-
-    if (!extractedImage) {
-      console.log(image.embed, "Image was not extracted");
-      return;
-    }
-
-    if (extractedImage.outputPath) {
-      // a cropped image has outputPath
-      console.log(image.embed, extractedImage.outputPath);
-    } else {
-      // a non-cropped image has srcPath only
-      console.log(image.embed, extractedImage.srcPath);
-    }
+  entryHandler.imageInfos.forEach((imageInfo, imageInfoIdx) => {
+    console.log(imageInfoIdx, JSON.stringify(imageInfo, null, 1));
   });
 }
 
@@ -111,12 +90,8 @@ async function main(binName, commandName, args): Promise<void> {
 
   await readDOCXFile(docx, opts);
 
-  printResults(entryHandler);
-
-  const { images, imageRels } = entryHandler;
-  if (images && imageRels) {
-    await printHtmlReport("images.html", outputDir, entryHandler.extractedImages, entryHandler.croppedImages);
-  }
+  await printResults(entryHandler);
+  await printHtmlReport("images.html", outputDir, entryHandler.imageInfos);
 }
 
 export default main;

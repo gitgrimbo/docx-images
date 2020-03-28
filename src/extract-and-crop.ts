@@ -18,6 +18,10 @@ import {
   isMedia,
 } from "./docx/entry-tests";
 import {
+  ShouldHandleEntry,
+  Handler,
+} from "./docx/reader";
+import {
   maybeCropImage,
   CropResult,
 } from "./image";
@@ -29,9 +33,16 @@ import {
 
 interface CropError {
   err: Error;
-  occurenceIndex: number;
+  imageIdx: number;
   image: DocxImage;
   outputPath: string;
+}
+
+export interface ImageInfo {
+  image: DocxImage;
+  outputPath: string;
+  crop?: CropResult;
+  cropError?: CropError;
 }
 
 function isImage(entry: yauzl.Entry, imageRels: Dictionary<Relationship>): boolean {
@@ -45,11 +56,24 @@ function isImage(entry: yauzl.Entry, imageRels: Dictionary<Relationship>): boole
 class EntryHandler {
   outputDir = "";
   imagePrefix = "";
+
+  /** The <Relationship> tags in the docx */
   imageRels: Dictionary<Relationship> = null;
+
+  /**
+   * The images in the docx, in order of appearance in the docx.
+   */
   images: DocxImage[] = null;
+
+  /**
+   * The images in the docx, in order of appearance in the docx.
+   */
+  imageInfos: ImageInfo[] = null;
+
+  /**
+   * Map of image target (e.g. "media/image1.jpeg") to Relationship id (e.g. "rId8").
+   */
   imageTargetToId: Dictionary<string> = null;
-  extractedImages: string[] = [];
-  croppedImages: Dictionary<(CropResult | { srcPath: string })[]> = {};
 
   constructor(outputDir: string, imagePrefix = "") {
     this.outputDir = outputDir;
@@ -57,7 +81,8 @@ class EntryHandler {
   }
 
   getImageIdFromEntry(entry: yauzl.Entry): string {
-    // turn "word/media/image269.jpeg" into "media/image269.jpeg"
+    // Turn "word/media/image269.jpeg" into "media/image269.jpeg"
+    // because the "Target" attribute of a <Relationship> does not have "word/" as a prefix.
     const filenameAsTarget = entry.fileName.replace(/^word\//, "");
     return this.imageTargetToId[filenameAsTarget];
   }
@@ -70,10 +95,10 @@ class EntryHandler {
     const xml = await parseStream(readStream);
     this.imageRels = getImagesFromDocumentRels(xml);
 
+    // setup the map of <Relationship> targets to <Relationship> ids.
     this.imageTargetToId = Object.keys(this.imageRels)
       .reduce((map, id) => {
         const { target } = this.imageRels[id];
-        // eslint-disable-next-line no-param-reassign
         map[target] = id;
         return map;
       }, {});
@@ -84,80 +109,10 @@ class EntryHandler {
     this.images = getImagesFromDocument(xml);
   }
 
-  async _saveOccurencesOfImageInBook(
-    occurencesOfImageInBook: DocxImage[],
-    outputPath: string,
-    croppedImages: (CropResult | { srcPath: string })[],
-  ): Promise<(CropResult | CropError)[]> {
-    const promises = occurencesOfImageInBook.map(async (image, i) => {
-      try {
-        // write to a modified outputPath
-        const { dir, ext, name } = path.parse(outputPath);
-        const newName = `${name}.crop.${i + 1}${ext}`;
-        const newOutputPath = path.resolve(dir, newName);
-        const result = await maybeCropImage(image, outputPath, newOutputPath);
-        console.log("result", result);
-        if (result) {
-          // cropped
-          croppedImages.push(result);
-        } else {
-          // not cropped
-          croppedImages.push({
-            srcPath: outputPath,
-          });
-        }
-        return result;
-      } catch (err) {
-        return {
-          err,
-          occurenceIndex: i,
-          image,
-          outputPath,
-        };
-      }
-    });
-    return Promise.all(promises);
-  }
-
-  async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<(CropResult | CropError)[]> {
-    const outputPath = this.outputFilePath(entry);
-    console.log("writeToFile", outputPath);
+  async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
+    const outputPath = this._outputFilePath(entry);
+    console.log("handleImage", outputPath);
     await writeToFile(readStream, outputPath);
-    this.extractedImages.push(outputPath);
-
-    const id = this.getImageIdFromEntry(entry);
-    if (!id) {
-      return;
-    }
-
-    const croppedImages = this.croppedImages[id] || [];
-    this.croppedImages[id] = croppedImages;
-
-    // find where this image appears in the book
-    const occurencesOfImageInBook = this.images.filter((image) => image.embed === id);
-    if (occurencesOfImageInBook.length === 0) {
-      return;
-    }
-
-    const allResults = await this._saveOccurencesOfImageInBook(occurencesOfImageInBook, outputPath, croppedImages);
-
-    allResults.forEach((result) => {
-      if (!result) {
-        console.log(id, entry.fileName, outputPath, "image was not cropped");
-        return;
-      }
-
-      if ("err" in result) {
-        console.log("error", result);
-        return;
-      }
-
-      // assume cropped
-      console.log(id, entry.fileName, `image was cropped to:`);
-      console.log(`  ${result.outputPath}, old-size: ${JSON.stringify(result.old)}, new-size: ${JSON.stringify(result.new)}`);
-    });
-
-    return allResults;
   }
 
   shouldHandleEntry(entry: yauzl.Entry): boolean {
@@ -186,29 +141,106 @@ class EntryHandler {
   }
 
   /**
-   * Returns the output path to save an image Entry to.
-   * @param {yauzl.Entry} entry
+   * Returns the output path to save an Entry or target to.
+   * @param {yauzl.Entry | string} Entry or <Relationship target> string.
    * @returns {string}
    * @memberof EntryHandler
    */
-  outputFilePath(entry: yauzl.Entry): string {
+  _outputFilePath(input: yauzl.Entry | string): string {
+    const isTargetString = typeof input === "string";
+
     // entry.fileName is the 'virtual' pathname within the zip
-    const { base, dir } = path.parse(entry.fileName);
+    let filename = isTargetString ? input as string : (input as yauzl.Entry).fileName;
+
+    const { base, dir } = path.parse(filename);
 
     // e.g. filename = "myprefix" + "image.jpeg"
-    const filename = this.imagePrefix + base;
+    filename = this.imagePrefix + base;
 
-    return path.resolve(this.outputDir, dir, filename);
+    const parts = [
+      this.outputDir,
+      // the Entry.filename will start with "/word", so add it if we need to.
+      isTargetString ? "word" : "",
+      dir,
+      filename,
+    ];
+    return path.resolve(...parts);
+  }
+
+  async _saveImage(
+    image: DocxImage,
+    imageIdx: number,
+    outputPath: string,
+  ): Promise<CropResult | CropError> {
+    try {
+      // write to a modified outputPath
+      const { dir, ext, name } = path.parse(outputPath);
+      const newName = `${name}.${imageIdx + 1}${ext}`;
+      const newOutputPath = path.resolve(dir, newName);
+      const result = await maybeCropImage(image, outputPath, newOutputPath);
+      return result;
+    } catch (err) {
+      return {
+        err,
+        imageIdx,
+        image,
+        outputPath,
+      };
+    }
+  }
+
+  async _generateImageInfo(): Promise<ImageInfo[]> {
+    this.imageInfos = await Promise.all(
+      this.images.map(async (image, imageIdx) => {
+        const { target } = this.imageRels[image.embed];
+        const outputPath = this._outputFilePath(target);
+        const result = await this._saveImage(image, imageIdx, outputPath);
+
+        if (!result) {
+          console.log(image.embed, target, outputPath, "image was not cropped");
+          return {
+            image,
+            outputPath,
+          };
+        }
+
+        if ("err" in result) {
+          console.log("error", result);
+          return {
+            image,
+            outputPath,
+            cropError: result,
+          };
+        }
+
+        // assume cropped
+        console.log(image.embed, target, `image was cropped to:`);
+        console.log(`  ${result.outputPath}, old-size: ${JSON.stringify(result.old)}, new-size: ${JSON.stringify(result.new)}`);
+        return {
+          image,
+          outputPath,
+          crop: result,
+        };
+      })
+    );
+
+    return this.imageInfos;
+  }
+
+  async onFinish(): Promise<void> {
+    await this._generateImageInfo();
   }
 }
 
 function getReadDOCXOpts(entryHandler: EntryHandler): {
-  shouldHandleEntry: (entry: yauzl.Entry) => boolean;
-  entryHandler: (entry: yauzl.Entry, readStream: NodeJS.ReadableStream) => boolean;
+  shouldHandleEntry: ShouldHandleEntry;
+  entryHandler: Handler;
+  onFinish: () => Promise<void>;
 } {
   return {
     shouldHandleEntry: entryHandler.shouldHandleEntry.bind(entryHandler),
     entryHandler: entryHandler.entryHandler.bind(entryHandler),
+    onFinish: entryHandler.onFinish.bind(entryHandler),
   };
 }
 

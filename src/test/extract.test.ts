@@ -142,21 +142,19 @@ describe("extract-and-crop", () => {
     type ExpectedItem = [string, number, number];
     const expected: ExpectedItem[] = [
       ["word/media/image1.png", 100, 100],
-      ["word/media/image1.crop.1.png", 50, 50],
+      ["word/media/image1.1.png", 50, 50],
     ];
 
     // read the docx file using an extract-and-crop EntryHandler
     const docxPath = resolveTestFile("100x100.cropped.docx");
     const entryHandler = new EntryHandler(outputDir);
     const opts = getReadDOCXOpts(entryHandler);
-    //console.log(outputDir, docxPath, "before readDOXCFile");
+
     await readDOCXFile(docxPath, opts);
-    //console.log(outputDir, docxPath, "after readDOXCFile");
 
     // assert the expected images have been extracted
-    //console.log(outputDir, "before readdirp");
     const entries = await asyncReaddirp(outputDir);
-    //console.log(outputDir, "after readdirp");
+
     const paths = normaliseAndSortEntryPaths(entries);
     const expectedPaths = normaliseAndSortPaths(expected.map(([entryPath]) => entryPath));
     expect(paths).to.be.deep.equal(expectedPaths);

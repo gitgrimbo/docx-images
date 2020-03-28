@@ -3,8 +3,9 @@
     "outDir": "./dist",
     "allowJs": true,
     "target": "ES2017",
-    "resolveJsonModule": true
+    "module": "commonjs"
   },
   "include": [
+    "./src/**/*"
   ]
 }

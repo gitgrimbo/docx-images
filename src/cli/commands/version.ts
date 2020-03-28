@@ -1,7 +1,8 @@
-import packageJSON from "../../package.json";
+import packageJson from "../../package-json";
 
 async function main(): Promise<void> {
-  console.log(packageJSON.version);
+  const version = (await packageJson()).version;
+  console.log(version);
 }
 
 export default main;

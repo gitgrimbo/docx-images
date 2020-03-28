@@ -27,6 +27,13 @@ import {
   writeToFile,
 } from "./streams";
 
+interface CropError {
+  err: Error;
+  occurenceIndex: number;
+  image: DocxImage;
+  outputPath: string;
+}
+
 function isImage(entry: yauzl.Entry, imageRels: Dictionary<Relationship>): boolean {
   const rel = findRelForEntry(entry, imageRels);
   if (!rel) {
@@ -41,7 +48,8 @@ class EntryHandler {
   imageRels: Dictionary<Relationship> = null;
   images: DocxImage[] = null;
   imageTargetToId: Dictionary<string> = null;
-  extractedImages = {};
+  extractedImages: string[] = [];
+  croppedImages: Dictionary<(CropResult | { srcPath: string })[]> = {};
 
   constructor(outputDir: string, imagePrefix = "") {
     this.outputDir = outputDir;
@@ -79,54 +87,51 @@ class EntryHandler {
   async _saveOccurencesOfImageInBook(
     occurencesOfImageInBook: DocxImage[],
     outputPath: string,
-    extractedImages: (CropResult | { srcPath: string })[],
-  ): Promise<(CropResult | {
-    err: Error;
-    i: number;
-    image: DocxImage;
-    outputPath: string;
-  })[]> {
-    return Promise.all(
-      occurencesOfImageInBook.map(async (image, i) => {
-        try {
-          // write to a modified outputPath
-          const { dir, ext, name } = path.parse(outputPath);
-          const newName = `${name}.crop.${i + 1}${ext}`;
-          const newOutputPath = path.resolve(dir, newName);
-          const result = await maybeCropImage(image, outputPath, newOutputPath);
-          if (result) {
-            // cropped
-            extractedImages.push(result);
-          } else {
-            // not cropped
-            extractedImages.push({
-              srcPath: outputPath,
-            });
-          }
-          return result;
-        } catch (err) {
-          return {
-            err,
-            i,
-            image,
-            outputPath,
-          };
+    croppedImages: (CropResult | { srcPath: string })[],
+  ): Promise<(CropResult | CropError)[]> {
+    const promises = occurencesOfImageInBook.map(async (image, i) => {
+      try {
+        // write to a modified outputPath
+        const { dir, ext, name } = path.parse(outputPath);
+        const newName = `${name}.crop.${i + 1}${ext}`;
+        const newOutputPath = path.resolve(dir, newName);
+        const result = await maybeCropImage(image, outputPath, newOutputPath);
+        console.log("result", result);
+        if (result) {
+          // cropped
+          croppedImages.push(result);
+        } else {
+          // not cropped
+          croppedImages.push({
+            srcPath: outputPath,
+          });
         }
-      })
-    );
+        return result;
+      } catch (err) {
+        return {
+          err,
+          occurenceIndex: i,
+          image,
+          outputPath,
+        };
+      }
+    });
+    return Promise.all(promises);
   }
 
-  async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
+  async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<(CropResult | CropError)[]> {
     const outputPath = this.outputFilePath(entry);
+    console.log("writeToFile", outputPath);
     await writeToFile(readStream, outputPath);
+    this.extractedImages.push(outputPath);
 
     const id = this.getImageIdFromEntry(entry);
     if (!id) {
       return;
     }
 
-    const extractedImages = this.extractedImages[id] || [];
-    this.extractedImages[id] = extractedImages;
+    const croppedImages = this.croppedImages[id] || [];
+    this.croppedImages[id] = croppedImages;
 
     // find where this image appears in the book
     const occurencesOfImageInBook = this.images.filter((image) => image.embed === id);
@@ -134,7 +139,7 @@ class EntryHandler {
       return;
     }
 
-    const allResults = await this._saveOccurencesOfImageInBook(occurencesOfImageInBook, outputPath, extractedImages);
+    const allResults = await this._saveOccurencesOfImageInBook(occurencesOfImageInBook, outputPath, croppedImages);
 
     allResults.forEach((result) => {
       if (!result) {
@@ -151,6 +156,8 @@ class EntryHandler {
       console.log(id, entry.fileName, `image was cropped to:`);
       console.log(`  ${result.outputPath}, old-size: ${JSON.stringify(result.old)}, new-size: ${JSON.stringify(result.new)}`);
     });
+
+    return allResults;
   }
 
   shouldHandleEntry(entry: yauzl.Entry): boolean {
@@ -161,20 +168,29 @@ class EntryHandler {
     // make sure to return/await the promises
 
     if (isDocumentXmlRels(entry)) {
-      return this.handleDocumentRels(entry, readStream);
+      await this.handleDocumentRels(entry, readStream);
+      return;
     }
 
     if (isDocumentXml(entry)) {
-      return this.handleDocumentXml(entry, readStream);
+      await this.handleDocumentXml(entry, readStream);
+      return;
     }
 
     if (isImage(entry, this.imageRels)) {
-      return this.handleImage(entry, readStream);
+      await this.handleImage(entry, readStream);
+      return;
     }
 
     return ignore(readStream);
   }
 
+  /**
+   * Returns the output path to save an image Entry to.
+   * @param {yauzl.Entry} entry
+   * @returns {string}
+   * @memberof EntryHandler
+   */
   outputFilePath(entry: yauzl.Entry): string {
     // entry.fileName is the 'virtual' pathname within the zip
     const { base, dir } = path.parse(entry.fileName);

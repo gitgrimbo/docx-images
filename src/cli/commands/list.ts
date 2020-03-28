@@ -24,7 +24,6 @@ import {
   getImagesFromFile as getImagesFromDocumentRelsFile,
   Relationship,
 } from "../../docx/document.xml.rels";
-import { printHtmlReport } from "../../reports";
 import Dictionary from "../../Dictionary";
 import CommandArgDescriptor from "../CommandArgDescriptor";
 
@@ -70,10 +69,6 @@ async function handleResults(images: DocxImage[], imageRels: Dictionary<Relation
       }
       console.log(...args);
     });
-  }
-
-  if (images && imageRels) {
-    await printHtmlReport("images.html", images, imageRels);
   }
 }
 

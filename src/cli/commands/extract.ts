@@ -39,11 +39,11 @@ function printResults(entryHandler): void {
     printImages(images, imageRels);
   }
 
-  const extractedImages = Object.keys(entryHandler.extractedImages)
+  const extractedImages = Object.keys(entryHandler.croppedImages)
     .reduce((prev, key) => {
       // copy the array
       // eslint-disable-next-line no-param-reassign
-      prev[key] = [...entryHandler.extractedImages[key]];
+      prev[key] = [...entryHandler.croppedImages[key]];
       return prev;
     }, {});
 
@@ -115,7 +115,7 @@ async function main(binName, commandName, args): Promise<void> {
 
   const { images, imageRels } = entryHandler;
   if (images && imageRels) {
-    await printHtmlReport("images.html", images, imageRels);
+    await printHtmlReport("images.html", outputDir, entryHandler.extractedImages, entryHandler.croppedImages);
   }
 }
 

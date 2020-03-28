@@ -1,12 +1,10 @@
 /*
 CLI orchestration script.
 */
-import packageJSON from "../../package.json";
 import extractCommand from "./commands/extract";
 import listCommand from "./commands/list";
 import versionCommand from "./commands/version";
-
-const binName = packageJSON.name;
+import packageJSON from "../package-json";
 
 const commands = {
   extract: extractCommand,
@@ -19,7 +17,7 @@ function quoteArr(arr: string[], quote = `"`): string {
   return `${quote}${joined}${quote}`;
 }
 
-function printHelp(): void {
+function printHelp(binName: string): void {
   const commandNames = quoteArr(Object.keys(commands));
   const lines = [
     `Usage is ${binName} command ...args`,
@@ -30,20 +28,22 @@ function printHelp(): void {
 }
 
 async function main(): Promise<void> {
+  const binName = (await packageJSON()).name;
+
   const args = process.argv.slice(2);
 
   // remove the argument and treat as command name
   const commandName = args.shift();
 
   if (!commandName || commandName === "help") {
-    printHelp();
+    printHelp(binName);
     return;
   }
 
   const command = commands[commandName];
   if (!command) {
     console.error(`command "${commandName}" is unknown`);
-    printHelp();
+    printHelp(binName);
     return;
   }
 

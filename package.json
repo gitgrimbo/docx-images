@@ -6,6 +6,10 @@
     "node": ">=8"
   },
   "scripts": {
+    "build": "tsc",
+    "--docx-images-1": "Does a build, then runs the CLI.",
+    "--docx-images-2": "E.g. run as `npm run docx-images -- list --docx src/test/100x100.cropped.docx`",
+    "docx-images": "tsc && node bin/cli.js",
     "lint": "eslint . --ext .ts",
     "lint:watch": "esw --watch --ext .ts",
     "test": "mocha --require ts-node/register src/**/test/**/*.test.ts",

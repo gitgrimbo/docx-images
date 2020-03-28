@@ -19,6 +19,8 @@ export interface CropResult {
 }
 
 /**
+ * Writes an image, but only if it has been cropped in the docx.
+ *
  * @param {DocxImage} image An image from getImagesFromDocument().
  * @param {string} srcPath Where to load the original (uncropped) image from.
  * @param {string} outputPath Where to save the (cropped) image.

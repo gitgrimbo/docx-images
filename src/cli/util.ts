@@ -1,4 +1,4 @@
-import minimist from "minimist";
+import * as minimist from "minimist";
 import Dictionary from "../Dictionary";
 import CommandArgDescriptor from "./CommandArgDescriptor";
 

@@ -3,7 +3,7 @@ const path = require("path");
 
 const concat = require("concat-stream");
 const devNull = require("dev-null");
-const mkdirp = require("mkdirp");
+const mkdirp = require("make-dir");
 
 /**
  * @param {NodeJS.ReadableStream} stream
@@ -34,31 +34,27 @@ function ignore(stream) {
  * @param {string} outputPath
  * @return Promise<void>
  */
-function writeToFile(readStream, outputPath) {
+async function writeToFile(readStream, outputPath) {
+  await mkdirp(path.dirname(outputPath));
+
   return new Promise((resolve, reject) => {
-    mkdirp(path.dirname(outputPath), (mkdirErr) => {
-      if (mkdirErr) {
-        reject(mkdirErr);
+    let rejected = false;
+
+    const combinedReject = (err) => {
+      if (rejected) {
         return;
       }
+      rejected = true;
+      reject(err);
+    };
 
-      let rejected = false;
-      const combinedReject = (err) => {
-        if (rejected) {
-          return;
-        }
-        rejected = true;
-        reject(err);
-      };
+    const destination = fs.createWriteStream(outputPath);
 
-      const destination = fs.createWriteStream(outputPath);
-
-      // resolve when the data has all been WRITTEN
-      destination.on("finish", resolve);
-      destination.on("error", combinedReject);
-      readStream.on("error", combinedReject);
-      readStream.pipe(destination);
-    });
+    // resolve when the data has all been WRITTEN
+    destination.on("finish", resolve);
+    destination.on("error", combinedReject);
+    readStream.on("error", combinedReject);
+    readStream.pipe(destination);
   });
 }
 

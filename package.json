@@ -27,8 +27,8 @@
     "concat-stream": "^2.0.0",
     "dev-null": "^0.1.1",
     "jimp": "^0.9.6",
+    "make-dir": "^3.0.2",
     "minimist": "^1.2.5",
-    "mkdirp": "^1.0.3",
     "xmldom": "^0.3.0",
     "xpath": "0.0.24",
     "yauzl": "^2.10.0"

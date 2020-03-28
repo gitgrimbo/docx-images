@@ -46,6 +46,11 @@ function printResults(entryHandler) {
   entryHandler.images.forEach((image) => {
     const extractedImage = extractedImages[image.embed].shift();
 
+    if (!extractedImage) {
+      console.log(image.embed, "Image was not extracted");
+      return;
+    }
+
     if (extractedImage.outputPath) {
       // a cropped image has outputPath
       console.log(image.embed, extractedImage.outputPath);

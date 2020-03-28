@@ -33,6 +33,9 @@ async function maybeCropImage(image, srcPath, outputPath) {
     return null;
   }
 
+  cropRect.left = Math.max(0, cropRect.left);
+  cropRect.top = Math.max(0, cropRect.top);
+
   console.log(outputPath, width, height, cropRect, srcRect, extent);
 
   await jimpImage

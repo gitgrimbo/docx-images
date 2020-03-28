@@ -24,9 +24,9 @@
     "Use xpath 0.0.24 because of this issue https://github.com/goto100/xpath/issues/78"
   ],
   "dependencies": {
-    "concat-stream": "^1.6.2",
+    "concat-stream": "^2.0.0",
     "dev-null": "^0.1.1",
-    "jimp": "^0.4.0",
+    "jimp": "^0.9.3",
     "minimist": "^1.2.0",
     "mkdirp": "^0.5.1",
     "xmldom": "^0.1.27",
@@ -34,15 +34,15 @@
     "yauzl": "^2.10.0"
   },
   "devDependencies": {
-    "chai": "^4.1.2",
+    "chai": "^4.2.0",
     "dirty-chai": "^2.0.1",
-    "eslint": "^5.5.0",
-    "eslint-config-airbnb-base": "^13.1.0",
-    "eslint-plugin-import": "^2.14.0",
-    "fs-extra": "^7.0.0",
-    "mocha": "^5.2.0",
-    "readdirp": "^2.1.0",
-    "tmp-promise": "^1.0.5",
-    "upath": "^1.1.0"
+    "eslint": "^6.7.2",
+    "eslint-config-airbnb-base": "^14.0.0",
+    "eslint-plugin-import": "^2.18.2",
+    "fs-extra": "^8.1.0",
+    "mocha": "^6.2.2",
+    "readdirp": "^3.2.0",
+    "tmp-promise": "^2.0.2",
+    "upath": "^1.2.0"
   }
 }

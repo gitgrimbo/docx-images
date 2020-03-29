@@ -30,23 +30,31 @@ import * as xpath from "xpath";
 
 import _validateDocument from "./validate-document";
 import { parseFile } from "../xml-parse";
-import { closest } from "../xml-query";
+import {
+  closest,
+  element,
+  findPrevSiblings,
+} from "../xml-query";
+import { getParaStyle } from "./paragraph";
+import { makePredicateForStyle } from "./predicates";
 
 export interface SrcRect {
-  l: number;
-  t: number;
-  r: number;
-  b: number;
+  l: string;
+  t: string;
+  r: string;
+  b: string;
 }
 
 export interface Extent {
-  cx: number;
-  cy: number;
+  cx: string;
+  cy: string;
 }
 
 export interface DocxImage {
   /** The id -> Relationship.id */
   embed: string;
+  drawing: Element;
+  blip: Element;
   srcRect: SrcRect;
   extent: Extent;
 }
@@ -58,8 +66,51 @@ export interface CropRect {
   height: number;
 }
 
+const namespaces = {
+  "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+  "wpc": "http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas",
+  "cx": "http://schemas.microsoft.com/office/drawing/2014/chartex",
+  "cx1": "http://schemas.microsoft.com/office/drawing/2015/9/8/chartex",
+  "cx2": "http://schemas.microsoft.com/office/drawing/2015/10/21/chartex",
+  "cx3": "http://schemas.microsoft.com/office/drawing/2016/5/9/chartex",
+  "cx4": "http://schemas.microsoft.com/office/drawing/2016/5/10/chartex",
+  "cx5": "http://schemas.microsoft.com/office/drawing/2016/5/11/chartex",
+  "cx6": "http://schemas.microsoft.com/office/drawing/2016/5/12/chartex",
+  "cx7": "http://schemas.microsoft.com/office/drawing/2016/5/13/chartex",
+  "cx8": "http://schemas.microsoft.com/office/drawing/2016/5/14/chartex",
+  "mc": "http://schemas.openxmlformats.org/markup-compatibility/2006",
+  "aink": "http://schemas.microsoft.com/office/drawing/2016/ink",
+  "am3d": "http://schemas.microsoft.com/office/drawing/2017/model3d",
+  "o": "urn:schemas-microsoft-com:office:office",
+  "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+  "m": "http://schemas.openxmlformats.org/officeDocument/2006/math",
+  "v": "urn:schemas-microsoft-com:vml",
+  "wp14": "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing",
+  "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+  "w10": "urn:schemas-microsoft-com:office:word",
+  "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+  "w14": "http://schemas.microsoft.com/office/word/2010/wordml",
+  "w15": "http://schemas.microsoft.com/office/word/2012/wordml",
+  "w16cid": "http://schemas.microsoft.com/office/word/2016/wordml/cid",
+  "w16se": "http://schemas.microsoft.com/office/word/2015/wordml/symex",
+  "wpg": "http://schemas.microsoft.com/office/word/2010/wordprocessingGroup",
+  "wpi": "http://schemas.microsoft.com/office/word/2010/wordprocessingInk",
+  "wne": "http://schemas.microsoft.com/office/word/2006/wordml",
+  "wps": "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+};
+
 function validateDocument(doc: Document): void {
   _validateDocument(doc, "document", "document.xml");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function _nonEnumerableProperty(src: any, name: string, value: any): any {
+  return Object.defineProperty(src, name, {
+    value,
+    writable: true,
+    configurable: true,
+    enumerable: false,
+  });
 }
 
 function getImages(documentXml: Document): DocxImage[] {
@@ -67,11 +118,11 @@ function getImages(documentXml: Document): DocxImage[] {
 
   const blips = xpath.select("//*[local-name(.)='blip']", documentXml) as Element[];
   return blips
-    .filter((b) => b.getAttribute("r:embed"))
-    .map((b) => {
-      let srcRect;
+    .filter((blip) => blip.getAttribute("r:embed"))
+    .map((blip) => {
+      let srcRect: SrcRect;
       // xmldom only has parentNode
-      const blipFill = closest(b.parentNode, "blipFill");
+      const blipFill = closest(blip.parentNode, "blipFill");
       if (blipFill) {
         const srcRects = xpath.select("*[local-name(.)='srcRect']", blipFill) as Element[];
         if (srcRects.length > 0) {
@@ -84,8 +135,8 @@ function getImages(documentXml: Document): DocxImage[] {
         }
       }
 
-      let extent;
-      const anchor = closest(b, "anchor");
+      let extent: Extent;
+      const anchor = closest(blip, "anchor");
       if (anchor) {
         const extents = xpath.select("*[local-name(.)='extent']", anchor) as Element[];
         if (extents.length > 0) {
@@ -96,11 +147,24 @@ function getImages(documentXml: Document): DocxImage[] {
         }
       }
 
-      return {
-        embed: b.getAttribute("r:embed"),
+      const drawing = closest(blip, "drawing");
+      const embed = blip.getAttribute("r:embed");
+
+      const result = {
+        embed,
+        drawing: null,
+        blip: null,
         srcRect,
         extent,
       };
+
+      // Exclude the "drawing" and "blip" properties from enumeration.
+      // This is because these XML objects can have recursive properties
+      // and would crash JSON.stringify().
+      _nonEnumerableProperty(result, "drawing", drawing);
+      _nonEnumerableProperty(result, "blip", blip);
+
+      return result;
     });
 }
 
@@ -112,7 +176,7 @@ async function getImagesFromFile(documentXmlPath: string): Promise<DocxImage[]> 
  * Gets the { left, top, width, height } for a given srcRect and image width/height.
  */
 function getCropRect(srcRect: SrcRect, width: number, height: number): CropRect {
-  const setFromSrcRect = (str, scale): number => {
+  const setFromSrcRect = (str: string, scale: number): number => {
     const n = parseInt(str, 10);
     if (Number.isNaN(n)) {
       return 0;
@@ -138,8 +202,115 @@ function getCropRect(srcRect: SrcRect, width: number, height: number): CropRect 
   };
 }
 
+const isHeading = makePredicateForStyle((foundStyle: string) => foundStyle && foundStyle.startsWith("Heading"));
+
+function findPreviousHeading(startNode: Node): Element | null {
+  const startElement = element(startNode);
+  const isStartElementParagraph = startElement && startElement.tagName === "w:p";
+  const p = isStartElementParagraph ? startElement : closest(startNode, "p");
+  return findPrevSiblings(p, (el) => {
+    const heading = Boolean(isHeading(el));
+    return {
+      pass: heading,
+      halt: heading,
+    };
+  })[0];
+}
+
+/**
+ * Finds the 'outermost related paragraph'.
+ *
+ * This is a <p> element whose parentNode is <body>, and is either
+ * - A true ancestor of node, or
+ * - The previous sibling of [the ancestor of node whose parentNode is <body>].
+ *
+ * @param {Node | null} node
+ * @return {Element | null}
+ */
+function findOutermostRelatedParagraph(node: Node): Element | null {
+  /*
+  In the case of the ancestor being a <p>
+
+  <w:document>
+    <w:body>
+      <w:p>      <-- This is the node we want.
+        <w:r>
+          <mc:AlternateContent>
+            <mc:Choice>
+              <w:drawing>
+                <wp:anchor>
+                  <a:graphic>
+                    <a:graphicData>
+                      <wps:wsp>
+                        <wps:txbx>
+                          <w:txbxContent>
+                            <w:p>      <-- We DON'T want this node.
+                              <w:r>
+                                <w:drawing>
+                                  <wp:inline>
+                                    <a:graphic>
+                                      <a:graphicData>
+                                        <pic:pic>
+                                          <pic:blipFill>
+                                            <a:blip>
+
+  In the case of the ancestor NOT being a <p>
+
+  <w:document>
+    <w:body>
+      <w:p />   <-- This is the node we want (prevSibling of the <w:tbl>).
+      <w:tbl>   <-- We DON'T want this node.
+        <w:tr>
+          <w:tc>
+            <w:p>
+              <w:r>
+                <w:drawing>
+                  <wp:inline>
+                    <a:graphic>
+                      <a:graphicData>
+                        <pic:pic>
+                          <pic:blipFill>
+                            <a:blip>
+  */
+
+  if (!node) {
+    return null;
+  }
+
+  const parent = element(node.parentNode);
+  if (!parent) {
+    return null;
+  }
+
+  const parentIsBody = parent.tagName === "w:body";
+
+  if (parentIsBody) {
+    while (node) {
+      const el = element(node);
+      if (el && el.tagName === "w:p") {
+        return el;
+      }
+      node = node.previousSibling;
+    }
+  }
+
+  const el = element(node);
+  if (el && el.tagName === "w:p") {
+    if (parentIsBody) {
+      return el;
+    }
+  }
+
+  return findOutermostRelatedParagraph(parent);
+}
+
 export {
+  findOutermostRelatedParagraph,
+  findPreviousHeading,
+  getCropRect,
   getImages,
   getImagesFromFile,
-  getCropRect,
+  getParaStyle,
+  isHeading,
+  namespaces,
 };

@@ -121,7 +121,12 @@ async function main(binName, commandName, args): Promise<void> {
     return;
   }
 
-  const { docx, documentXml, documentXmlRels } = argv;
+  const {
+    docx,
+    documentXml,
+    documentXmlRels,
+  } = argv;
+
   if (!docx && !documentXml && !documentXmlRels) {
     console.error(`Invalid arguments to "${commandName}"`);
     printHelp(binName, commandName, commandArgInfo);

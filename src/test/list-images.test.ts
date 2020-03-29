@@ -1,11 +1,7 @@
 import * as path from "path";
-
 import * as chai from "chai";
-import * as dirtyChai from "dirty-chai";
 
 import { listImages } from "../list-images";
-
-chai.use(dirtyChai);
 
 const { expect } = chai;
 
@@ -57,7 +53,7 @@ const expected = {
 };
 /* eslint-enable */
 
-describe("list-images", () => {
+describe("/list-images.ts", () => {
   describe("listImages", () => {
     const fixtures = [
       "blank.docx",

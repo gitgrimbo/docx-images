@@ -1,16 +1,12 @@
 import * as fs from "fs";
 import * as path from "path";
-
 import * as chai from "chai";
-import * as dirtyChai from "dirty-chai";
 
 import { ignore, read } from "../streams";
 
-chai.use(dirtyChai);
-
 const { expect } = chai;
 
-describe("streams", () => {
+describe("/streams.ts", () => {
   describe("ignore", () => {
     it("success", async () => {
       const stream = fs.createReadStream(path.resolve(__dirname, "test.txt"));

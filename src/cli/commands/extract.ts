@@ -1,11 +1,18 @@
 /*
 Script that will do any necessary cropping to the images that are extracted from a docx file.
 */
+import * as path from "path";
 import * as minimist from "minimist";
 
-import { minimistOpts, printHelp } from "../util";
+import {
+  minimistOpts,
+  printHelp,
+} from "../util";
 import { readDOCXFile } from "../../docx/reader";
-import { EntryHandler, getReadDOCXOpts } from "../../extract-and-crop";
+import {
+  EntryHandler,
+  getReadDOCXOpts,
+} from "../../extract-and-crop";
 import { printHtmlReport } from "../../reports";
 import Dictionary from "../../Dictionary";
 import { Relationship } from "../../docx/document.xml.rels";
@@ -36,9 +43,18 @@ async function printResults(entryHandler: EntryHandler): Promise<void> {
   });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function requireEntryHandlerOpts(optsModulePath: string): Promise<any> {
+  let abs = optsModulePath;
+  if (!path.isAbsolute(abs)) {
+    abs = path.resolve(".", abs);
+  }
+  return require(abs);
+}
+
 async function main(binName, commandName, args): Promise<void> {
   const commandArgInfo: Dictionary<CommandArgDescriptor> = {
-    docx: {
+    "docx": {
       description: "The path to the docx file.",
       type: "string",
     },
@@ -52,6 +68,10 @@ async function main(binName, commandName, args): Promise<void> {
       type: "string",
       defaultValue: "",
     },
+    "opts-module": {
+      description: "A CommonJS module path providing custom options code.",
+      type: "string",
+    },
   };
 
   const argv = minimist(args, minimistOpts(commandArgInfo));
@@ -63,12 +83,12 @@ async function main(binName, commandName, args): Promise<void> {
     return;
   }
 
-  const { docx, "output-dir": outputDir, "image-prefix": imagePrefix } = argv;
-  if (!docx) {
-    console.error(`Invalid arguments to "${commandName}"`);
-    printHelp(binName, commandName, commandArgInfo);
-    return;
-  }
+  const {
+    docx,
+    "output-dir": outputDir,
+    "image-prefix": imagePrefix,
+    "opts-module": optsModulePath,
+  } = argv;
 
   if (!docx) {
     console.error(`Invalid arguments to "${commandName}"`);
@@ -76,7 +96,17 @@ async function main(binName, commandName, args): Promise<void> {
     return;
   }
 
-  const entryHandler = new EntryHandler(outputDir, imagePrefix);
+  if (!outputDir) {
+    console.error(`Invalid arguments to "${commandName}"`);
+    printHelp(binName, commandName, commandArgInfo);
+    return;
+  }
+
+  let entryHandlerOpts = null;
+  if (optsModulePath) {
+    entryHandlerOpts = await requireEntryHandlerOpts(optsModulePath);
+  }
+  const entryHandler = new EntryHandler(outputDir, imagePrefix, entryHandlerOpts);
 
   const opts = getReadDOCXOpts(entryHandler);
 

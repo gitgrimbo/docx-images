@@ -1,3 +1,4 @@
+import { promises as fsp } from "fs";
 import * as path from "path";
 import * as yauzl from "yauzl";
 
@@ -30,18 +31,19 @@ import {
   ignore,
   writeToFile,
 } from "./streams";
+import { closest } from "./xml-query";
 
 interface CropError {
   err: Error;
   imageIdx: number;
 }
 
-export interface EntryImageInfo {
+interface EntryImageInfo {
   entryFileName: string;
   outputPath: string;
 }
 
-export interface ImageInfo {
+interface ImageInfo {
   image: DocxImage;
   rel: Relationship;
   entryImage?: EntryImageInfo;
@@ -50,11 +52,81 @@ export interface ImageInfo {
   outputPath: string;
 }
 
-export interface Extracts {
+interface Extracts {
   entryImageInfos: EntryImageInfo[];
   imageInfos: ImageInfo[];
   imageRels: Dictionary<Relationship>;
 }
+
+/**
+ * Return null if you don't want to provide an image path, and want to take the default.
+ */
+type PathForEntryImageCallback = (opts: {
+  outputDir: string;
+  imagePrefix: string;
+  entry: yauzl.Entry;
+}) => string | null;
+
+/**
+ * Return null if you don't want to provide an image path, and want to take the default.
+ */
+type PathForImageInDocumentCallback = (opts: {
+  outputDir: string;
+  imagePrefix: string;
+  image: DocxImage;
+  imageRels: Dictionary<Relationship>;
+  entryImage: EntryImageInfo;
+  refCount: number;
+}) => string | null;
+
+/**
+ * Returns the output path to save an Entry or target to.
+ * @param {yauzl.Entry} entry.
+ * @param {string} outputDir Root directory of the output path.
+ * @param {string} imagePrefix Prefix to prepend to image file name.
+ * @returns {string}
+ */
+function makeOutputFilePath(entry: yauzl.Entry, outputDir: string, imagePrefix = ""): string {
+  // entry.fileName is the 'virtual' pathname within the zip
+  let filename = entry.fileName;
+
+  const { base, dir } = path.parse(filename);
+
+  // e.g. filename = "myprefix" + "image.jpeg"
+  filename = imagePrefix + base;
+
+  const parts = [
+    outputDir,
+    dir,
+    filename,
+  ];
+  return path.resolve(...parts);
+}
+
+const defaultPathForEntryImage: PathForEntryImageCallback = ({
+  outputDir,
+  imagePrefix,
+  entry,
+}) => {
+  return makeOutputFilePath(entry, outputDir, imagePrefix);
+};
+
+const defaultMakeCroppedImagePath: PathForImageInDocumentCallback = ({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  outputDir,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  imagePrefix,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  image,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  imageRels,
+  entryImage,
+  refCount,
+}) => {
+  const { dir, ext, name } = path.parse(entryImage.outputPath);
+  const newName = `${name}.${refCount + 1}${ext}`;
+  return path.resolve(dir, newName);
+};
 
 function isImage(entry: yauzl.Entry, imageRels: Dictionary<Relationship>): boolean {
   const rel = findRelForEntry(entry, imageRels);
@@ -88,9 +160,20 @@ class EntryHandler {
    */
   private entryImageInfos: EntryImageInfo[] = null;
 
-  constructor(outputDir: string, imagePrefix = "") {
+  private pathForImageInDocument: PathForImageInDocumentCallback = null;
+  private pathForEntryImage: PathForEntryImageCallback = null;
+  private ignoreFallbackImages = true;
+
+  constructor(outputDir: string, imagePrefix = "", opts: {
+    pathForImageInDocument?: PathForImageInDocumentCallback;
+    pathForEntryImage?: PathForEntryImageCallback;
+    ignoreFallbackImages?: boolean;
+  } = {}) {
     this.outputDir = outputDir;
     this.imagePrefix = imagePrefix || "";
+    this.pathForImageInDocument = opts.pathForImageInDocument;
+    this.pathForEntryImage = opts.pathForEntryImage;
+    this.ignoreFallbackImages = opts.ignoreFallbackImages;
   }
 
   async maybeCropImage(image, srcPath, outputPath): Promise<CropResult | null> {
@@ -108,11 +191,31 @@ class EntryHandler {
   }
 
   async handleImage(entry: yauzl.Entry, readStream: NodeJS.ReadableStream): Promise<void> {
-    const outputPath = this._outputFilePath(entry);
+    const pathForEntryImageOpts = {
+      outputDir: this.outputDir,
+      imagePrefix: this.imagePrefix,
+      entry,
+    };
+
+    let outputPath = null;
+
+    // if a custom callback is provided, use it.
+    if (this.pathForEntryImage) {
+      outputPath = this.pathForEntryImage(pathForEntryImageOpts);
+    }
+
+    // if there's no output path (either there was no custom callback, or it returned null)
+    // use the default callback
+    if (!outputPath) {
+      outputPath = defaultPathForEntryImage(pathForEntryImageOpts);
+    }
+
     await writeToFile(readStream, outputPath);
+
     if (!this.entryImageInfos) {
       this.entryImageInfos = [];
     }
+
     this.entryImageInfos.push({
       entryFileName: entry.fileName,
       outputPath,
@@ -144,63 +247,63 @@ class EntryHandler {
     return ignore(readStream);
   }
 
-  /**
-   * Returns the output path to save an Entry or target to.
-   * @param {yauzl.Entry | string} Entry or <Relationship target> string.
-   * @returns {string}
-   * @memberof EntryHandler
-   */
-  _outputFilePath(input: yauzl.Entry | string): string {
-    const isTargetString = typeof input === "string";
-
-    // entry.fileName is the 'virtual' pathname within the zip
-    let filename = isTargetString ? input as string : (input as yauzl.Entry).fileName;
-
-    const { base, dir } = path.parse(filename);
-
-    // e.g. filename = "myprefix" + "image.jpeg"
-    filename = this.imagePrefix + base;
-
-    const parts = [
-      this.outputDir,
-      // the Entry.filename will start with "/word", so add it if we need to.
-      isTargetString ? "word" : "",
-      dir,
-      filename,
-    ];
-    return path.resolve(...parts);
-  }
-
   async _generateImageInfo(): Promise<ImageInfo[]> {
     const imageRefCounts = {};
 
     this.imageInfos = [];
 
-    const handle = async (image, imageIdx): Promise<ImageInfo> => {
+    const handle = async (image: DocxImage, imageIdx: number): Promise<ImageInfo> => {
+      if (this.ignoreFallbackImages) {
+        // ignore any images in <mc:Fallback> tags
+        const fallback = closest(image.blip, "Fallback");
+        if (fallback) {
+          return null;
+        }
+      }
+
       const rel = this.imageRels[image.embed];
       const { target } = rel;
       const entryImage = this.entryImageInfos.find((entryImage) => entryImage.entryFileName === "word/" + target);
 
-      const outputPath = this._outputFilePath(target);
+      const entryOutputPath = entryImage.outputPath;
 
       let result = null;
+      let outputPath = null;
 
       try {
-        // write to a modified outputPath
-        const srcPath = outputPath;
-
         // how many times have we seen this image?
-        const refCount = imageRefCounts[srcPath] || 0;
+        const refCount = imageRefCounts[entryOutputPath] || 0;
 
-        const { dir, ext, name } = path.parse(srcPath);
-        const newName = `${name}.${refCount + 1}${ext}`;
-        const newOutputPath = path.resolve(dir, newName);
+        const pathForImageInDocumentOpts = {
+          outputDir: this.outputDir,
+          imagePrefix: this.imagePrefix,
+          image,
+          imageRels: this.imageRels,
+          entryImage,
+          refCount,
+        };
 
-        result = await maybeCropImage(image, srcPath, newOutputPath);
+        // if a custom callback is provided, use it.
+        if (this.pathForImageInDocument) {
+          outputPath = this.pathForImageInDocument(pathForImageInDocumentOpts);
+        }
+
+        // if there's no output path (either there was no custom callback, or it returned null)
+        // use the default callback
+        if (!outputPath) {
+          outputPath = defaultMakeCroppedImagePath(pathForImageInDocumentOpts);
+        }
+
+        result = await maybeCropImage(image, entryOutputPath, outputPath);
 
         if (result) {
           // we saved a cropped image, so update the ref count for its source path.
-          imageRefCounts[srcPath] = (imageRefCounts[srcPath] || 0) + 1;
+          imageRefCounts[entryOutputPath] = (imageRefCounts[entryOutputPath] || 0) + 1;
+        } else {
+          if (entryOutputPath !== outputPath) {
+            // if the requested output file is different to the original entry, make a copy with the new name.
+            await fsp.copyFile(entryOutputPath, outputPath);
+          }
         }
       } catch (err) {
         console.log("error", err);
@@ -242,7 +345,10 @@ class EntryHandler {
       // wait for the handling of images sequentially,
       // so there is no race condition on imageRefCounts
       const result = await handle(image, imageIdx);
-      this.imageInfos.push(result);
+      if (result) {
+        // if result is null then there was no image saved.
+        this.imageInfos.push(result);
+      }
     }
 
     return this.imageInfos;
@@ -274,7 +380,15 @@ function getReadDOCXOpts(entryHandler: EntryHandler): {
 }
 
 export {
+  CropError,
   EntryHandler,
+  EntryImageInfo,
+  Extracts,
+  ImageInfo,
+  PathForEntryImageCallback,
+  PathForImageInDocumentCallback,
+  defaultMakeCroppedImagePath,
   getReadDOCXOpts,
   isImage,
+  makeOutputFilePath,
 };

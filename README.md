@@ -71,6 +71,7 @@ Usage is: docx-images extract [options...]
   --docx: {string} The path to the docx file.
   --output-dir: {string} Output folder for the extracted file(s). [Default "."]
   --image-prefix: {string} A prefix to use for the extracted image name(s). [Default ""]
+  --opts-module: {string} A CommonJS module path providing custom options code.
 ```
 
 Sample output:
@@ -88,6 +89,25 @@ rId147 word/media/image79.jpeg image was cropped to:
   new-size: {"left":0,"top":112.17287999999999,"width":997,"height":631.82712}
 ...
 ```
+
+### Custom Options
+
+Custom options, such as callbacks, can be passed to `docx-images` using the `opts-module` argument.
+For example:
+
+`docx-images extract --docx src/test/100x100.mixed.docx --output-dir .temp --opts-module PATH_TO/optsModule.sample.js`
+
+This module should return an object of the following shape.
+
+```
+module.exports = {
+  ignoreFallbackImages,
+  makeEntryImagePath,
+  makeCroppedImagePath,
+};
+```
+
+See [src/test/optsModule.sample.js](src/test/optsModule.sample.js) for an example.
 
 ### Report
 

@@ -1,11 +1,11 @@
 import * as chai from "chai";
-import * as dirtyChai from "dirty-chai";
 import * as yauzl from "yauzl";
 
-import { findRelForEntry, Relationship } from "../document.xml.rels";
+import {
+  findRelForEntry,
+  Relationship,
+} from "../document.xml.rels";
 import Dictionary from "../../Dictionary";
-
-chai.use(dirtyChai);
 
 const { expect } = chai;
 
@@ -35,7 +35,7 @@ function testName(entry: yauzl.Entry, rels: Dictionary<Relationship>, expected: 
   ].join("");
 }
 
-describe("docx/document.xml.rels", () => {
+describe("/docx/document.xml.rels.ts", () => {
   describe("findRelForEntry", () => {
     const goodEntry = { fileName: "word/media/image1.png" } as yauzl.Entry;
     const goodRel = {

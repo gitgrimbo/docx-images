@@ -1,10 +1,48 @@
 import { Node } from "xmldom/lib/dom";
 
-function element(node: Node): Element {
-  if (node.nodeType === Node.ELEMENT_NODE) {
+type HaltingPredicate<T> = (it: T) => {
+  pass: boolean;
+  halt: boolean;
+};
+
+function isElement(node: Node): boolean {
+  return node.nodeType === Node.ELEMENT_NODE
+}
+
+function element(node: Node): Element | null {
+  if (isElement(node)) {
     return node as Element;
   }
   return null;
+}
+
+/**
+ * Finds the previous siblings of an Element, that match an optional predicate.
+ * @param {Element} el
+ * @param {HaltingPredicate<Element>} predicate
+ * @returns {Element[]}
+ */
+function findPrevSiblings(el: Element, predicate?: HaltingPredicate<Element>): Element[] {
+  const result = [];
+  let node = el.previousSibling;
+  while (node) {
+    el = element(node);
+    if (el) {
+      if (!predicate) {
+        result.push(el);
+      } else {
+        const { pass, halt } = predicate(el);
+        if (pass) {
+          result.push(el);
+        }
+        if (halt) {
+          break;
+        }
+      }
+    }
+    node = node.previousSibling;
+  }
+  return result;
 }
 
 /**
@@ -13,9 +51,9 @@ function element(node: Node): Element {
  * @param {Node} node
  * @param {string} tagName
  * @param {boolean} [localName=true]
- * @return {Element} The closest matching node, else null.
+ * @return {Element | null} The closest matching node, else null.
  */
-function closest(node: Node, tagName: string, localName = true): Element {
+function closest(node: Node, tagName: string, localName = true): Element | null {
   if (!node || !element(node)) {
     return null;
   }
@@ -36,7 +74,7 @@ function childrenInternal(
   tagName: string,
   localName: boolean,
   depth?: number,
-  collectedChildren?: Element[],
+  collectedChildren: Element[] = [],
 ): Element[] {
   if (!node || depth <= 0) {
     return collectedChildren;
@@ -86,4 +124,7 @@ function children(node: Node, tagName: string, localName = true, depth = 1): Ele
 export {
   children,
   closest,
+  element,
+  findPrevSiblings,
+  isElement,
 };
